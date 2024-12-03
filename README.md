@@ -15,3 +15,7 @@ ViewType
 --------
 This folder contains the definition of the view types. These are necessary to create views of the vsum. 
 
+Vsum
+----
+This folder contains the VSUM
+
