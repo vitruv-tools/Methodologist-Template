@@ -47,5 +47,14 @@
             <version>${project.version}</version>
             <artifactId>tools.vitruv.methodologisttemplate.consistency</artifactId>
         </dependency>
+        <dependency>
+        <groupId>tools.vitruv</groupId>
+        <artifactId>tools.vitruv.framework.vsum</artifactId>
+      </dependency>
+      <dependency>
+        <groupId>tools.vitruv</groupId>
+        <artifactId>tools.vitruv.change.testutils.integration</artifactId>
+        <version>3.1.0</version>
+      </dependency>
     </dependencies>
 </project>
