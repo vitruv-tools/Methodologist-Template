@@ -6,7 +6,11 @@ import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 
+import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
@@ -20,20 +24,29 @@ import tools.vitruv.framework.vsum.VirtualModel;
  * This class provides an example how to define and use a VSUM.
  */
 public class VSUMExampleTest {
-  
+
+  static final Path projectPath = Path.of("vsumexample");
+
+  @BeforeAll
+  static void setup() {
+    Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("model", new XMIResourceFactoryImpl());
+  }
+
   @Test
   void test() {
     VirtualModel vsum = createDefaultVirtualModel();
     CommittableView view = getDefaultView(vsum).withChangeDerivingTrait();
     modifyView(view, (CommittableView v) -> {
-      v.getRootObjects().add(ModelFactory.eINSTANCE.createSystem());
+      v.registerRoot(
+        ModelFactory.eINSTANCE.createSystem(),
+        URI.createURI(projectPath.resolve("example.model").toString()));
     });
     Assertions.assertFalse(getDefaultView(vsum).getRootObjects().isEmpty(),"Modification of view failed");
   }
 
   private VirtualModel createDefaultVirtualModel() {
     return new VirtualModelBuilder()
-        .withStorageFolder(Path.of("vsumexample"))
+        .withStorageFolder(projectPath)
         .withUserInteractorForResultProvider(new TestUserInteraction.ResultProvider(new TestUserInteraction()))
         .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
         .buildAndInitialize();
