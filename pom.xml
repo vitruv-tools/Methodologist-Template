@@ -28,16 +28,16 @@
     <module>consistency</module>
   </modules>
 
-<build>
-  <plugins>
-    <plugin>
-      <groupId>org.openntf.maven</groupId>
-      <artifactId>p2-layout-resolver</artifactId>
-    </plugin>
-  </plugins>
-</build>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.openntf.maven</groupId>
+        <artifactId>p2-layout-resolver</artifactId>
+      </plugin>
+    </plugins>
+  </build>
 
-   <dependencyManagement>
+  <dependencyManagement>
     <dependencies>
       <!-- Vitruvius dependencies -->
       <dependency>
