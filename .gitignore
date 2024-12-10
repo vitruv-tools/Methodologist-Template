@@ -10,6 +10,3 @@ target/
 META-INF
 build.properties
 plugin.properties
-
-# Example
-vsumexample

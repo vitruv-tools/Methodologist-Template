@@ -25,7 +25,7 @@ import tools.vitruv.framework.vsum.VirtualModel;
  */
 public class VSUMExampleTest {
 
-  static final Path projectPath = Path.of("vsumexample");
+  static final Path projectPath = Path.of("target/vsumexample");
 
   @BeforeAll
   static void setup() {
