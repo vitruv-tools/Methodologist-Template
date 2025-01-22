@@ -34,15 +34,6 @@
     <vitruv-framework.version>3.1.0</vitruv-framework.version>
   </properties>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.openntf.maven</groupId>
-        <artifactId>p2-layout-resolver</artifactId>
-      </plugin>
-    </plugins>
-  </build>
-
   <dependencyManagement>
     <dependencies>
       <!-- Vitruvius dependencies -->
