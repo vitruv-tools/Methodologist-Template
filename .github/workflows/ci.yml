@@ -1,0 +1,38 @@
+name: CI
+
+# workflow triggers
+on:
+  # manually
+  workflow_dispatch:
+  # PRs on `main`
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  verify:
+    name: Verify build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4.2.2
+
+    - name: Setup Java and Maven cache
+      uses: actions/setup-java@v4.6.0
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        check-latest: true
+        cache: 'maven'
+
+    - name: Verify build
+      run: >
+        ./mvnw clean verify
+        --batch-mode
+        --update-snapshots
+        --no-transfer-progress
