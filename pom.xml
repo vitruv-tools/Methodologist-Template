@@ -53,7 +53,7 @@
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.interaction</artifactId>
-        <version>3.1.0</version>
+        <version>3.1.2</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
