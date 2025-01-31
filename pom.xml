@@ -9,7 +9,7 @@
   <parent>
     <groupId>tools.vitruv</groupId>
     <artifactId>parent</artifactId>
-    <version>3.0.6</version>
+    <version>3.0.7</version>
   </parent>
 
   <!-- Project Information -->
@@ -28,14 +28,9 @@
     <module>consistency</module>
   </modules>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.openntf.maven</groupId>
-        <artifactId>p2-layout-resolver</artifactId>
-      </plugin>
-    </plugins>
-  </build>
+  <properties>
+    <vitruv.version>3.1.2</vitruv.version>
+  </properties>
 
   <dependencyManagement>
     <dependencies>
@@ -43,42 +38,42 @@
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.atomic</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.composite</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.interaction</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.propagation</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.testutils.integration</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.dsls.reactions.runtime</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.framework.views</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.framework.vsum</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
 
       <!-- external dependencies-->
