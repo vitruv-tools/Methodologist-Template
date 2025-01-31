@@ -28,6 +28,10 @@
     <module>consistency</module>
   </modules>
 
+  <properties>
+    <vitruv.version>3.1.2</vitruv.version>
+  </properties>
+
   <build>
     <plugins>
       <plugin>
@@ -43,42 +47,42 @@
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.atomic</artifactId>
-        <version>3.1.2</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.composite</artifactId>
-        <version>3.1.2</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.interaction</artifactId>
-        <version>3.1.2</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.propagation</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.change.testutils.integration</artifactId>
-        <version>3.1.2</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.dsls.reactions.runtime</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.framework.views</artifactId>
-        <version>3.1.2</version>
+        <version>${vitruv.version}</version>
       </dependency>
       <dependency>
         <groupId>tools.vitruv</groupId>
         <artifactId>tools.vitruv.framework.vsum</artifactId>
-        <version>3.1.0</version>
+        <version>${vitruv.version}</version>
       </dependency>
 
       <!-- external dependencies-->
