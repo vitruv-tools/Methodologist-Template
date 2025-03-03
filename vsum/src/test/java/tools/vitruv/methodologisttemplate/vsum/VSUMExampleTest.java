@@ -2,6 +2,8 @@ package tools.vitruv.methodologisttemplate.vsum;
 
 import tools.vitruv.framework.vsum.VirtualModelBuilder;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
+import tools.vitruv.methodologisttemplate.model.model.ModelPackage;
+import tools.vitruv.methodologisttemplate.model.model2.Model2Package;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
 
 import java.io.File;
@@ -14,6 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.junit.jupiter.api.AfterEach;
@@ -38,13 +41,22 @@ public class VSUMExampleTest {
 
   @BeforeAll
   static void setup() {
-    Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("model", new XMIResourceFactoryImpl());
+    // ------------------------------------- IMPORTANT ----------------------------//
+    // Register the appropriate ResourceFactory which is used by the ChangeDerivingViewType to create an initial copy of the
+    // Resources that are part of the View. Uncomment the line if you want to set a specific ResourceFactory for your specific
+    // Metamodel.
+    // Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("model", new XMIResourceFactoryImpl());
+    Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new XMIResourceFactoryImpl());
+    EPackage.Registry.INSTANCE.put(ModelPackage.eNS_URI, ModelPackage.eINSTANCE);
+    EPackage.Registry.INSTANCE.put(Model2Package.eNS_URI, Model2Package.eINSTANCE);
   }
 
   @AfterEach
   void clean() {
-    try (Stream<Path> walk = Files.walk(Path.of(new File("").getAbsolutePath() + "/target/vsumexample"))) {
+    final Path folder = Path.of(new File("").getAbsolutePath() + "/target/vsumexample/");
+    try (Stream<Path> walk = Files.walk(folder)) {
       walk.sorted(Comparator.reverseOrder())
+        .filter(path -> !path.equals(folder))
           .forEach(path -> {
             try {
               Files.delete(path);
@@ -68,6 +80,7 @@ public class VSUMExampleTest {
     }));
   }
 
+  @Test
   void insertComponent() {
     VirtualModel vsum = createDefaultVirtualModel();
     addSystem(vsum);
@@ -78,6 +91,7 @@ public class VSUMExampleTest {
     }));
   }
 
+  @Test
   void renameComponent() {
     final String newName = "newName";
     VirtualModel vsum = createDefaultVirtualModel();
@@ -92,6 +106,7 @@ public class VSUMExampleTest {
     }));
   }
 
+  @Test
   void deleteComponent() {
     VirtualModel vsum = createDefaultVirtualModel();
     addSystem(vsum);
@@ -123,6 +138,7 @@ public class VSUMExampleTest {
     modifyView(view, (CommittableView v) -> {
       var component = ModelFactory.eINSTANCE.createComponent();
       component.setName("specialname");
+      java.lang.System.out.println(v.getRootObjects(System.class).iterator().next().getClass().getPackage());
       v.getRootObjects(System.class).iterator().next().getComponents().add(component);
     });
   }
