@@ -41,7 +41,7 @@ public class VSUMExampleTest {
         ModelFactory.eINSTANCE.createSystem(),
         URI.createURI(projectPath.resolve("example.model").toString()));
     });
-    Assertions.assertFalse(getDefaultView(vsum).getRootObjects().isEmpty(),"Modification of view failed");
+    Assertions.assertEquals(2, getDefaultView(vsum).getRootObjects().size(),"Modification of view and propagation of changes failed");
   }
 
   private VirtualModel createDefaultVirtualModel() {

@@ -1,4 +1,6 @@
 
+import java.io.File;
+
 import "http://vitruv.tools/methodologisttemplate/model" as model
 import "http://vitruv.tools/methodologisttemplate/model2" as model2
 
@@ -6,3 +8,20 @@ reactions: model2Model2
 in reaction to changes in model
 execute actions in model2
 
+reaction SystemInsertedAsRoot {
+	after element model::System inserted as root
+	call createAndRegisterRoot(newValue)
+}
+
+routine createAndRegisterRoot(model::System system) {
+	match {
+		require absence of model2::Root corresponding to system
+	}
+  create {
+    val mRoot = new model2::Root
+  }
+	update {
+    persistProjectRelative(system, mRoot, new File("").toString() + "/example.model2")
+		addCorrespondenceBetween(system, mRoot)
+	}
+}
