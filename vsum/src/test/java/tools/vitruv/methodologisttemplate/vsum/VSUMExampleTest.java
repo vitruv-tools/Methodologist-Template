@@ -3,27 +3,16 @@ package tools.vitruv.methodologisttemplate.vsum;
 import tools.vitruv.framework.vsum.VirtualModelBuilder;
 import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
-import tools.vitruv.methodologisttemplate.model.model.ModelPackage;
-import tools.vitruv.methodologisttemplate.model.model2.Model2Package;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
-
 import org.eclipse.emf.common.util.URI;
-import org.eclipse.emf.ecore.EPackage;
-import org.eclipse.emf.ecore.plugin.EcorePlugin;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -43,48 +32,19 @@ import tools.vitruv.methodologisttemplate.model.model.System;
  */
 public class VSUMExampleTest {
 
-  // static final Path projectPath = Path.of("target/vsumexample");
-
   @BeforeAll
   static void setup() {
-    // ------------------------------------- IMPORTANT ----------------------------//
-    // Register the appropriate ResourceFactory which is used by the ChangeDerivingViewType to create an initial copy of the
-    // Resources that are part of the View. Uncomment the line if you want to set a specific ResourceFactory for your specific
-    // Metamodel.
-    // Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("model", new XMIResourceFactoryImpl());
     Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new XMIResourceFactoryImpl());
-    EPackage.Registry.INSTANCE.put(ModelPackage.eNS_URI, ModelPackage.eINSTANCE);
-    EPackage.Registry.INSTANCE.put(Model2Package.eNS_URI, Model2Package.eINSTANCE);
-    EcorePlugin.ExtensionProcessor.process(null);
   }
-
-  // @AfterEach
-  // void clean() {
-  //   final Path folder = Path.of(new File("").getAbsolutePath() + "/" + projectPath.toString());
-  //   try (Stream<Path> walk = Files.walk(folder)) {
-  //     walk.sorted(Comparator.reverseOrder())
-  //       .filter(path -> !path.equals(folder))
-  //         .forEach(path -> {
-  //           try {
-  //             Files.delete(path);
-  //           } catch (IOException e) {
-  //             e.printStackTrace();
-  //           }
-  //         });
-  //   } catch (IOException e) {
-  //     e.printStackTrace();
-  //   }
-  // }
 
   @Test
   void systemInsertionAndPropagationTest(@TempDir Path tempDir) {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
-    Assertions.assertEquals(2, getDefaultView(vsum, List.of(System.class, Root.class)).getRootObjects().size(),
-        "Modification of view and propagation of changes failed");
-    Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
-      return v.getRootObjects(System.class).size() == 1 && v.getRootObjects(Root.class).size() == 1;
-    }));
+    // assert that the directly added System is present
+    Assertions.assertEquals(1, getDefaultView(vsum, List.of(System.class)).getRootObjects().size());
+    // as well as the Root that should be created by the Reactions, see templateReactions.reactions#14
+    Assertions.assertEquals(1, getDefaultView(vsum, List.of(Root.class)).getRootObjects().size());
   }
 
   @Test
@@ -94,7 +54,11 @@ public class VSUMExampleTest {
     addComponent(vsum);
     Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
       // assert that a component has been inserted, a entity has been created and that both have the same name
-      return v.getRootObjects(System.class).iterator().next().getComponents().get(0).getName().equals(v.getRootObjects(Root.class).iterator().next().getEntities().get(0).getName());
+      // Note: to make the test result easier to understand, these different effects should be tested one by one
+      return v.getRootObjects(System.class).iterator().next()
+        .getComponents().get(0).getName()
+        .equals(v.getRootObjects(Root.class).iterator().next()
+        .getEntities().get(0).getName());
     }));
   }
 
@@ -105,11 +69,15 @@ public class VSUMExampleTest {
     addSystem(vsum, tempDir);
     addComponent(vsum);
     modifyView(getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(), (CommittableView v) -> {
+      // change the name of the component
       v.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
     });
     Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
       // assert that the renaming worked on the component as well as the corresponding entity
-      return v.getRootObjects(System.class).iterator().next().getComponents().get(0).getName().equals(newName) && v.getRootObjects(Root.class).iterator().next().getEntities().get(0).getName().equals(newName);
+      return v.getRootObjects(System.class).iterator().next()
+        .getComponents().get(0).getName().equals(newName) 
+        && v.getRootObjects(Root.class).iterator().next()
+        .getEntities().get(0).getName().equals(newName);
     }));
   }
 
@@ -123,12 +91,9 @@ public class VSUMExampleTest {
     });
     Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
       // assert that the deletion of the component worked and that the corresponding entity also got deleted
-      return v.getRootObjects(System.class).iterator().next().getComponents().isEmpty() && v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty();
+      return v.getRootObjects(System.class).iterator().next().getComponents().isEmpty() 
+      && v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty();
     }));
-  }
-
-  private boolean assertView(View view, Function<View, Boolean> viewAssertionFunction) {
-    return viewAssertionFunction.apply(view);
   }
 
   private void addSystem(VirtualModel vsum, Path projectPath) {
@@ -160,6 +125,7 @@ public class VSUMExampleTest {
     return model;
   }
 
+  // See https://github.com/vitruv-tools/Vitruv/issues/717 for more information about the rootTypes
   private View getDefaultView(VirtualModel vsum, Collection<Class<?>> rootTypes) {
     var selector = vsum.createSelector(ViewTypeFactory.createIdentityMappingViewType("default"));
     selector.getSelectableElements().stream()
@@ -168,9 +134,14 @@ public class VSUMExampleTest {
     return selector.createView();
   }
 
+  // These functions are only for convience, as they make the code a bit better readable
   private void modifyView(CommittableView view, Consumer<CommittableView> modificationFunction) {
     modificationFunction.accept(view);
     view.commitChanges();
+  }
+
+  private boolean assertView(View view, Function<View, Boolean> viewAssertionFunction) {
+    return viewAssertionFunction.apply(view);
   }
 
 }
