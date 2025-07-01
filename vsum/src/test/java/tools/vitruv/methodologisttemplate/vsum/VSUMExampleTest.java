@@ -1,15 +1,11 @@
 package tools.vitruv.methodologisttemplate.vsum;
 
-import tools.vitruv.framework.vsum.VirtualModelBuilder;
-import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
-import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
-import tools.vitruv.methodologisttemplate.model.model2.Root;
-
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
@@ -25,7 +21,11 @@ import tools.vitruv.framework.views.CommittableView;
 import tools.vitruv.framework.views.View;
 import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
+import tools.vitruv.framework.vsum.VirtualModelBuilder;
+import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
+import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
+import tools.vitruv.methodologisttemplate.model.model2.Root;
 
 /**
  * This class provides an example how to define and use a VSUM.
@@ -56,6 +56,24 @@ public class VSUMExampleTest {
       // assert that a component has been inserted, a entity has been created and that both have the same name
       // Note: to make the test result easier to understand, these different effects should be tested one by one
       return v.getRootObjects(System.class).iterator().next()
+        .getComponents().get(0).getName()
+        .equals(v.getRootObjects(Root.class).iterator().next()
+        .getEntities().get(0).getName());
+    }));
+  }
+
+  @Test 
+  void insertRouter(@TempDir Path tempDir) {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addRouter(vsum);
+    modifyView(getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(), (CommittableView v) -> {
+      // add a router to the system
+      v.getRootObjects(System.class).iterator().next().getComponents().add(ModelFactory.eINSTANCE.createRouter());
+    });
+    Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
+      // assert that the router has been added and that the corresponding entity has been created
+          return v.getRootObjects(System.class).iterator().next()
         .getComponents().get(0).getName()
         .equals(v.getRootObjects(Root.class).iterator().next()
         .getEntities().get(0).getName());
@@ -111,6 +129,15 @@ public class VSUMExampleTest {
     modifyView(view, (CommittableView v) -> {
       var component = ModelFactory.eINSTANCE.createComponent();
       component.setName("specialname");
+      v.getRootObjects(System.class).iterator().next().getComponents().add(component);
+    });
+  }
+
+  private void addRouter(VirtualModel vsum) {
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    modifyView(view, (CommittableView v) -> {
+      var component = ModelFactory.eINSTANCE.createRouter();
+      component.setName("specialRouterName");
       v.getRootObjects(System.class).iterator().next().getComponents().add(component);
     });
   }

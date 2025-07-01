@@ -1,27 +1,92 @@
-## Tutorial
+# Tutorial
 
-For the following example make yourself familiar with the meta-model. The meta-model is located in the `model` folder for more information read the [Model](#model) section.
+For the following tutorial a basic understanding of the V-SUM is recommended.
+We recommend reading our [wiki](https://github.com/vitruv-tools/.github/wiki) for more information.
+First we will briefly explain how to edit the meta-models stored in `.ecore` files in the `model` folder.
+For a deeper understanding on EMF and ecore we recommend the [Eclipse EMF Tutorial](https://www.vogella.com/tutorials/EclipseEMF/article.html) by Lars Vogel and the [model section](./README.md#model) in the readme..
 
-### Editing the Model and Testing Reactions
+## Editing the Meta-Model
 
-1. **Editing the Meta-Model** \
-   The `model.ecore` file defines a `component` and a `device` and `server` which extend the `component` .
-   Consider you're now a methodologist and you want to expand the meta-model to also support `Routers` which are also a `component` .
-   Add a new `component` called `Router` which also extends the `component` .
+We recommend using the Eclipse Modeling Framework (EMF) to edit the meta-models.
+Please make sure to have the EMF plugin installed in your Eclipse IDE.
+The meta-models are located in the `model` folder of the project.
+You can open the `.ecore` files in Eclipse and edit them using the EMF editor
+or any other editor that supports ecore files.
 
-2. **Keeping the Models Consistent** \
-   Once you have added the `Router` to the meta-model we now want to ensure that
-   consistency is kept. Have a look at the reactions located in the `consistency` folder.
-   Reactions are used to keep the models, meaning the concrete instances of the meta-model, consistent.
-   The `ComponentInsertedIntoSystem` reaction is responsible for creating a corresponding `Entity` for each `Component` that is inserted into the system.
+When you're done editing the meta-model, you need to update the genmodel.
+To do this, right-click on the `.genmodel` file and select `Reload...`.
+Once the ecore and genmodel files are synchronized again, make sure their updated version are placed into the model folder.
 
-   When a `Component` is inserted into the instantiated system, the reaction is triggered in order to keep the model up to date.
-   It then calles a routine which restores the consistency.
-   Here the routine `createAndInsertEntity` is called. With the `match` block all `components` without a matching `Entity` are selected.
-   Then a new `Entity` is created. Afterwards all properties from the `Component` are set to the `Entity` .
-   The `Entity` is then inserted into the `Root` . With the `addCorrespondenceBetween` method the `Component` and the `Entity` are linked.
+Please open the existing `model.ecore` and `model2.ecore` files in the `model` folder and make yourself familiar with the meta-models.
+As a simple first task, we want to expand the meta-model and add a new consistency rule that keeps the models consistent.
 
-   Since the `Router` is a `Component` it will be matched by the reaction and a corresponding `Entity` will be created. Therefore we don't need to add a new reaction for the `Router` .
+## Example Task 1
+
+Our tasks will follow three simple steps:
+
+1. **Editing the Meta-Model**: We will edit/expand meta-model.
+2. **Keeping the Models Consistent**: We will ensure that the models are kept consistent by introducing consistency preservation rules written in the reactions language.
+3. **Testing the Reactions**: We will write test cases that ensure that the reactions are working as expected and that the models are kept consistent.
+
+The current code reflects the state of the project after the tutorial has been completed.
+We encourage you to follow the steps and implement the tasks yourself or at least read through the code to understand how the V-SUM works.
+
+In this simple first task we will add a new `Router` component to the meta-model and ensure that the reactions are working correctly.
+
+### 1. Editing the Model
+
+The `model.ecore` file defines a `component` and a `device` and `server` which extend the `component` .
+Consider you're now a methodologist and you want to expand the meta-model to also support `Routers` which are also a `component` .
+Add a new EClass called `Router` which also extends the `component`.
+
+### 2. Keeping the Models Consistent
+
+Once you have added the `Router` to the meta-model we now want to ensure that consistency is kept.
+Have a look at the reactions located in the `consistency` folder.
+Reactions are used to keep the models, meaning the concrete instances of the meta-model, consistent.
+The `ComponentInsertedIntoSystem` reaction is responsible for creating a corresponding `Entity` for each `Component` that is inserted into the system.
+When a `Component` is inserted into the instantiated system, the reaction is triggered in order to keep the model up to date.
+Since the `Router` is a `Component` it will be matched by the reaction and a corresponding `Entity` will be created. Therefore we don't need to add a new reaction for the `Router`.
+The reaction then calls a routine which restores the consistency.
+Here the routine `createAndInsertEntity` is called.
+
+Within the match block all corresponding elements are selected.
+Then a new `Entity` is created. Afterwards all properties from the `Component` are set to the `Entity`.
+The `Entity` is then inserted into the `Root`.
+With the `addCorrespondenceBetween` method the `Component` and the `Entity` are linked.
+
+### 3. Adding a Test Case
+
+Now we want to make sure that the reaction is working correctly for or newly added `Router` component.
+
+For this we can use the inspiration of the existing test case `insertComponent` and add a new test case for the `Router`.
+
+The test case could look like this:
+
+```java
+@Test
+   void insertRouter(@TempDir Path tempDir) {
+       InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+       addSystem(vsum, tempDir);
+       addRouter(vsum);
+       Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
+       // assert that a component has been inserted, a entity has been created and that
+       // both have the same name
+       return v.getRootObjects(System.class).iterator().next()
+           .getComponents().get(0).getName()
+           .equals(v.getRootObjects(Root.class).iterator().next()
+               .getEntities().get(0).getName());
+       }));
+   }
+
+```
+
+A `addRouter` helper method needs to be added that creates a `Router` and adds it to the system.
+The method as well as the test case can be found in the `VSUMExampleTest.java` file.
+
+## Example Task 2
+
+ <!-- TODO: show containment! -->
 
 3. **Adding a Test Case** \
    Now we want to ensure that the `Router` is correctly inserted into the system and that the reaction is triggered.
@@ -197,3 +262,9 @@ Now we want to keep the links between the two meta-models consistent.
       }
 
    ```
+
+   # <<<<<<< HEAD
+
+<!-- How to import own models -> Link -->
+
+> > > > > > > c1e2507 (add first task)
