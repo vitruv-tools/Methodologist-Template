@@ -90,3 +90,71 @@ routine deleteEntity(model::Component component) {
 		removeCorrespondenceBetween(entity, component)
 	}
 }
+
+reaction ProtocolInsertedIntoSystem {
+    after element model::Protocol inserted in model::System[protocols]
+    call createAndInsertProtocol(affectedEObject, newValue)
+}
+
+routine createAndInsertProtocol(model::System system, model::Protocol protocol) {
+    match {
+        require absence of model2::CommunicationStandard corresponding to protocol
+        val mRoot = retrieve model2::Root corresponding to system
+    }
+    create {
+        val mStandard = new model2::CommunicationStandard
+    }
+    update {
+    	mStandard.name = protocol.name
+    	addCorrespondenceBetween(protocol, mStandard)
+    }
+}
+
+reaction LinkInsertedIntoSystem {
+	after element model::Link inserted in model::System[links]
+	call createAndInsertLink(affectedEObject, newValue)
+}
+
+routine createAndInsertLink(model::System system, model::Link link) {
+	match {
+		require absence of model2::Link corresponding to link
+		val mRoot = retrieve model2::Root corresponding to system
+	}
+	create {
+		val mLink = new model2::Link
+	}
+	update {
+		mRoot.links.add(mLink)
+		addCorrespondenceBetween(link, mLink)
+	}
+}
+
+reaction ComponentInsertedIntoLink {
+	after element model::Component inserted in model::Link[components]
+	call updateLinkEntities(affectedEObject, newValue)
+}
+
+routine updateLinkEntities(model::Link link, model::Component component) {
+	match {
+		val mEntity = retrieve model2::Entity corresponding to component
+		val mLink = retrieve model2::Link corresponding to link
+	}
+	update {
+		mLink.entities.add(mEntity)
+	}
+}
+
+reaction ProtocolInsertedIntoLink {
+	after element model::Protocol replaced at model::Link[protocol]
+	call updateLinkProtocols(affectedEObject, newValue)
+}
+
+routine updateLinkProtocols(model::Link link, model::Protocol protocol) {
+	match {
+		val mStandard = retrieve model2::CommunicationStandard corresponding to protocol
+		val mLink = retrieve model2::Link corresponding to link
+	}
+	update {
+		mLink.standard = mStandard
+	}
+}
