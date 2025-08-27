@@ -38,6 +38,24 @@ public class VSUMExampleTest {
   }
 
   @Test
+  void reloadEmptyVirtualModel(@TempDir Path tempDir) {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    vsum.dispose();
+    vsum = createDefaultVirtualModel(tempDir);
+  }
+
+  @Test
+  void reloadFilledVirtualModel(@TempDir Path tempDir) {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    vsum.dispose();
+    vsum = createDefaultVirtualModel(tempDir);
+    // Assert that the reloaded virtual model contains the changes we made before disposing it
+    Assertions.assertEquals(1, getDefaultView(vsum, List.of(System.class)).getRootObjects().size());
+    Assertions.assertEquals(1, getDefaultView(vsum, List.of(Root.class)).getRootObjects().size());
+  }
+
+  @Test
   void systemInsertionAndPropagationTest(@TempDir Path tempDir) {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
