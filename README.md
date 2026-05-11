@@ -45,6 +45,36 @@ The `model` folder contains the meta-model in the ecore format. Note that each e
 ## Consistency
 
 This folder contains the consistency specifications, like reactions.
+Reaction files (`.reactions`) define how changes in one model are propagated to keep other models consistent.
+Alongside the reactions, this folder also contains OCL constraint files (`.ocl`) that express declarative
+consistency rules which can be evaluated against the VSUM at any point in time.
+
+## Constraints with VitruviusOCL
+
+VitruviusOCL is a cross-model constraint language and evaluator for Vitruvius VSUMs.
+Constraints are written in OCL# syntax and stored in `.ocl` files next to the reactions.
+
+The constraint file for this template is located at:
+```
+consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl
+```
+
+### How it works
+
+1. **Define constraints** in a `.ocl` file using the OCL# syntax (see `constraints.ocl` for examples).
+2. **Register your VSUM** once with `VitruvOCL.registerVSUM(vsum)`.
+3. **Evaluate constraints** at any time with `VitruvOCL.evaluateConstraints(path)`, which returns a
+   `BatchValidationResult` indicating per constraint whether it is satisfied or violated.
+
+Constraint evaluation can be triggered in two ways:
+
+- **Manually**: Call `VitruvOCL.evaluateConstraints(path)` explicitly after any `commitChanges()`.
+- **Automatically after every propagation**: Register a `ChangePropagationListener` on the VSUM.
+  Vitruvius will call `finishedChangePropagation()` automatically after each `commitChanges()` once
+  all Reactions have executed — making it the ideal place to invoke the constraint evaluator.
+
+See `VSUMExample.java` for a complete example of the automatic integration, and
+`VSUMExampleTest.java` for a test case that demonstrates manual evaluation after change propagation.
 
 ## ViewType
 

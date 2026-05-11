@@ -26,11 +26,23 @@ import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
+import tools.vitruv.dsls.vitruvOCL.pipeline.VitruvOCL;
 
 /**
  * This class provides an example how to define and use a VSUM.
+ *
+ * <p>It also demonstrates how to integrate VitruviusOCL for constraint-based consistency checking.
+ * Constraints are defined in {@code constraints.ocl} and can be evaluated manually via
+ * {@link VitruvOCL#evaluateConstraints(java.nio.file.Path)} or automatically after every change
+ * propagation by registering a {@link tools.vitruv.change.composite.propagation.ChangePropagationListener}.
  */
 public class VSUMExampleTest {
+
+  /**
+   * Path to the OCL constraint file, located alongside the Reactions in the consistency module.
+   */
+  private static final java.nio.file.Path CONSTRAINT_FILE = java.nio.file.Path.of(
+      "consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
 
   @BeforeAll
   static void setup() {
@@ -173,6 +185,28 @@ public class VSUMExampleTest {
           && root.getLinks().get(0).getEntities().stream()
               .allMatch(c -> c.getName().startsWith("component"));
     }));
+  }
+
+  /**
+   * Demonstrates manual constraint evaluation using VitruviusOCL.
+   *
+   * <p>After inserting a Component and committing the change, the Reactions create a corresponding
+   * Entity in model2. The OCL constraints in {@code constraints.ocl} are then evaluated manually
+   * to verify that the VSUM is in a consistent state.
+   */
+  @Test
+  void constraintsAreSatisfiedAfterComponentInsert(@TempDir Path tempDir) {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+
+    // Register the VSUM so VitruviusOCL can access model instances and correspondences.
+    VitruvOCL.registerVSUM(vsum);
+
+    var result = VitruvOCL.evaluateConstraints(CONSTRAINT_FILE);
+    Assertions.assertTrue(result.allSatisfied(),
+        "Expected all OCL constraints to be satisfied after component insertion, but violations were found: "
+            + result.getResults());
   }
 
   private void addSystem(VirtualModel vsum, Path projectPath) {

@@ -177,3 +177,90 @@ The test case which also can be found in the `VSUMExampleTest.java` file, looks 
 ```
 
 Once the test cases are added we can run the tests again and check that all tests are passing.
+
+## Example Task 3
+
+So far we have used Reactions to keep models consistent and Tests to verify the consistency.
+VitruviusOCL adds a third layer: **declarative consistency constraints** that can be evaluated
+against the live VSUM at any point in time — independently of any Reaction or test assertion.
+
+The three steps from the previous tasks apply here as well:
+
+1. **Write constraints** in a `.ocl` file that captures the consistency rules you care about.
+2. **Register the VSUM** once with VitruviusOCL.
+3. **Evaluate and act** on the result — manually or automatically after every change propagation.
+
+### 1. Writing Constraints
+
+Open the existing `constraints.ocl` file in the `consistency` folder.
+Each constraint follows the VitruviusOCL syntax:
+
+```ocl
+context model::Component inv ComponentHasCorrespondingEntity:
+    model2::Entity.allInstances().select(~).size() == 1
+```
+
+- `context` specifies which metaclass is the subject of the constraint.
+- `inv` introduces an invariant with a name.
+- `model2::Entity.allInstances().select(~)` navigates the correspondence model: it returns all
+  `Entity` instances in `model2` that correspond to the current `self` (the `Component`).
+
+As a task, add a new constraint that ensures every `Entity` in `model2` has a name that is
+not equal to the string `"unnamed"`. This rule cannot be expressed by the Reactions alone,
+which makes OCL the right tool for it.
+
+```ocl
+context model2::Entity inv EntityNameIsNotUnnamed:
+    self.name != "unnamed"
+```
+
+### 2. Registering the VSUM
+
+In your VSUM setup code (e.g. in a test or in `VSUMExample.java`), call:
+
+```java
+VitruvOCL.registerVSUM(vsum);
+```
+
+This only needs to be done once per VSUM instance.
+VitruviusOCL uses this registration to access the model instances and the correspondence model
+when constraints are evaluated.
+
+### 3a. Manual Evaluation in a Test
+
+After performing model changes and committing them, call:
+
+```java
+var result = VitruvOCL.evaluateConstraints(CONSTRAINT_FILE);
+Assertions.assertTrue(result.allSatisfied(),
+    "OCL violations: " + result.getResults());
+```
+
+This evaluates every constraint in the file and returns a `BatchValidationResult`.
+See `constraintsAreSatisfiedAfterComponentInsert` in `VSUMExampleTest.java` for the full example.
+
+### 3b. Automatic Evaluation via ChangePropagationListener
+
+For production use, register a `ChangePropagationListener` once on the VSUM.
+Vitruvius calls `finishedChangePropagation()` automatically after every `commitChanges()`,
+once all Reactions have finished — making it the right place to evaluate constraints:
+
+```java
+vsum.addChangePropagationListener(new ChangePropagationListener() {
+    @Override
+    public void startedChangePropagation(VitruviusChange<Uuid> changeToPropagate) { }
+
+    @Override
+    public void finishedChangePropagation(Iterable<PropagatedChange> propagatedChanges) {
+        var result = VitruvOCL.evaluateConstraints(CONSTRAINT_FILE);
+        result.getResults().forEach(entry -> {
+            if (!entry.isSatisfied()) {
+                System.err.println("[OCL VIOLATION] " + entry);
+            }
+        });
+    }
+});
+```
+
+From this point on, every `commitChanges()` will automatically trigger constraint evaluation —
+no further calls are needed. See `VSUMExample.java` for the full working example.

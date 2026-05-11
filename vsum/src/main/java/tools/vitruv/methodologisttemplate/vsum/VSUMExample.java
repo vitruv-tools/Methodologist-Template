@@ -1,33 +1,87 @@
 package tools.vitruv.methodologisttemplate.vsum;
 
-import tools.vitruv.framework.vsum.VirtualModelBuilder;
-import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
-
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
+import tools.vitruv.change.atomic.uuid.Uuid;
+import tools.vitruv.change.composite.description.PropagatedChange;
+import tools.vitruv.change.composite.description.VitruviusChange;
+import tools.vitruv.change.composite.propagation.ChangePropagationListener;
 import tools.vitruv.change.testutils.TestUserInteraction;
+import tools.vitruv.dsls.vitruvOCL.pipeline.VitruvOCL;
 import tools.vitruv.framework.views.CommittableView;
 import tools.vitruv.framework.views.View;
 import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
+import tools.vitruv.framework.vsum.VirtualModelBuilder;
+import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 
 /**
  * This class provides an example how to define and use a VSUM.
+ *
+ * <p>It also demonstrates how to integrate VitruviusOCL for automatic constraint evaluation.
+ * Constraints are defined in {@code constraints.ocl} and evaluated after every change propagation
+ * via a {@link ChangePropagationListener}.
  */
 public class VSUMExample {
+
+  /** Path to the OCL constraint file, located alongside the Reactions in the consistency module. */
+  private static final Path CONSTRAINT_FILE =
+      Path.of(
+          "consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
+
   public static void main(String[] args) {
     VirtualModel vsum = createDefaultVirtualModel();
+
+    // Register the VSUM with VitruviusOCL so that evaluateConstraints() can access it.
+    // This only needs to be done once per VSUM instance.
+    VitruvOCL.registerVSUM(vsum);
+
+    // Register a ChangePropagationListener to automatically evaluate constraints
+    // after every commitChanges() call. Vitruvius calls finishedChangePropagation()
+    // internally once all Reactions have been executed.
+    vsum.addChangePropagationListener(
+        new ChangePropagationListener() {
+          @Override
+          public void startedChangePropagation(VitruviusChange<Uuid> changeToPropagate) {
+            // nothing to do before propagation
+          }
+
+          @Override
+          public void finishedChangePropagation(Iterable<PropagatedChange> propagatedChanges) {
+            // Evaluate all constraints in the .ocl file against the current VSUM state.
+            // The result indicates per constraint whether it is satisfied or violated.
+            var result = VitruvOCL.evaluateConstraints(CONSTRAINT_FILE);
+            result
+                .getResults()
+                .forEach(
+                    entry -> {
+                      if (!entry.isSatisfied()) {
+                        java.lang.System.err.println(
+                            "[OCL VIOLATION] "
+                                + entry.getConstraint()
+                                + ": "
+                                + entry.getWarningsSummary());
+                      }
+                    });
+          }
+        });
+
     CommittableView view = getDefaultView(vsum).withChangeDerivingTrait();
-    modifyView(view, (CommittableView v) -> {
-      v.getRootObjects().add(ModelFactory.eINSTANCE.createSystem());
-    });
+    modifyView(
+        view,
+        (CommittableView v) -> {
+          // After this commit, Reactions fire and then the ChangePropagationListener
+          // automatically evaluates the constraints defined in constraints.ocl.
+          v.getRootObjects().add(ModelFactory.eINSTANCE.createSystem());
+        });
   }
 
   private static VirtualModel createDefaultVirtualModel() {
     return new VirtualModelBuilder()
         .withStorageFolder(Path.of("vsumexample"))
-        .withUserInteractorForResultProvider(new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+        .withUserInteractorForResultProvider(
+            new TestUserInteraction.ResultProvider(new TestUserInteraction()))
         .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
         .buildAndInitialize();
   }
@@ -38,9 +92,9 @@ public class VSUMExample {
     return selector.createView();
   }
 
-  private static void modifyView(CommittableView view, Consumer<CommittableView> modificationFunction) {
+  private static void modifyView(
+      CommittableView view, Consumer<CommittableView> modificationFunction) {
     modificationFunction.accept(view);
     view.commitChanges();
   }
-
 }
