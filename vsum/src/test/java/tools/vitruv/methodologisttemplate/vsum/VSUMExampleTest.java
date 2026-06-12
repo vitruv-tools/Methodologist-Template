@@ -23,6 +23,7 @@ import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
 import tools.vitruv.framework.vsum.VirtualModelBuilder;
 import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
+import tools.vitruv.methodologisttemplate.model.Author;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
@@ -108,17 +109,50 @@ public class VSUMExampleTest {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
-    modifyView(getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(), (CommittableView v) -> {
-      // change the name of the component
-      v.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
-    });
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
+    view.setAnnotation(Author.class, new Author("methodologist"));
+    view.commitChanges();
     Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
-      // assert that the renaming worked on the component as well as the corresponding
-      // entity
+      // assert that the renaming worked on the component as well as the corresponding entity
       return v.getRootObjects(System.class).iterator().next()
           .getComponents().get(0).getName().equals(newName)
           && v.getRootObjects(Root.class).iterator().next()
               .getEntities().get(0).getName().equals(newName);
+    }));
+  }
+
+  @Test
+  void renameComponentWithAuthorPropagates(@TempDir Path tempDir) {
+    final String newName = "authorizedName";
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
+    view.setAnnotation(Author.class, new Author("methodologist"));
+    view.commitChanges();
+    Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
+      return v.getRootObjects(Root.class).iterator().next()
+          .getEntities().get(0).getName().equals(newName);
+    }));
+  }
+
+  @Test
+  void renameComponentWithoutAuthorDoesNotPropagate(@TempDir Path tempDir) {
+    final String originalName = "specialname";
+    final String newName = "unauthorizedName";
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
+    // no Author annotation — rename reaction precondition is not satisfied
+    view.commitChanges();
+    Assertions.assertTrue(assertView(getDefaultView(vsum, List.of(System.class, Root.class)), (View v) -> {
+      // model2 entity name should still be the original name
+      return v.getRootObjects(Root.class).iterator().next()
+          .getEntities().get(0).getName().equals(originalName);
     }));
   }
 
@@ -204,13 +238,17 @@ public class VSUMExampleTest {
   }
 
   private InternalVirtualModel createDefaultVirtualModel(Path projectPath) {
-    InternalVirtualModel model = new VirtualModelBuilder()
-        .withStorageFolder(projectPath)
-        .withUserInteractorForResultProvider(new TestUserInteraction.ResultProvider(new TestUserInteraction()))
-        .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
-        .buildAndInitialize();
-    model.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
-    return model;
+    try {
+      InternalVirtualModel model = new VirtualModelBuilder()
+              .withStorageFolder(projectPath)
+              .withUserInteractorForResultProvider(new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+              .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+              .buildAndInitialize();
+      model.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
+      return model;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   // See https://github.com/vitruv-tools/Vitruv/issues/717 for more information

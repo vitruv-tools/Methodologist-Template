@@ -51,6 +51,7 @@ routine createAndInsertEntity(model::System system, model::Component component) 
     val entity = new model2::Entity
   }
 	update {
+    println("createAndInsertEntity called with component.name=" + component.name)
     entity.name = component.name
     mRoot.entities.add(entity)
 		addCorrespondenceBetween(component, entity)
@@ -64,13 +65,16 @@ reaction ComponentRenamed {
 	call renameEntity(affectedEObject)
 }
 
+// Only propagates the rename when the committing author is "methodologist".
 routine renameEntity(model::Component component) {
 	match {
     val entity = retrieve model2::Entity corresponding to component
 	}
-  // we can omit blocks like the update block if we do not need them
 	update {
-    entity.name = component.name
+	    println(changeAnnotations.getAnnotation(tools.vitruv.methodologisttemplate.model.Author))
+		if (changeAnnotations.getAnnotation(tools.vitruv.methodologisttemplate.model.Author).map[name == "methodologist"].orElse(false)) {
+    	entity.name = component.name
+    }
 	}
 }
 

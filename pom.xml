@@ -29,7 +29,7 @@
   </modules>
 
   <properties>
-    <vitruv.version>3.2.3</vitruv.version>
+    <vitruv.version>3.2.4-SNAPSHOT</vitruv.version>
   </properties>
 
   <dependencyManagement>

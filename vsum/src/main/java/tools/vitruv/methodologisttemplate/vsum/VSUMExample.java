@@ -25,11 +25,15 @@ public class VSUMExample {
   }
 
   private static VirtualModel createDefaultVirtualModel() {
-    return new VirtualModelBuilder()
-        .withStorageFolder(Path.of("vsumexample"))
-        .withUserInteractorForResultProvider(new TestUserInteraction.ResultProvider(new TestUserInteraction()))
-        .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
-        .buildAndInitialize();
+    try {
+      return new VirtualModelBuilder()
+              .withStorageFolder(Path.of("vsumexample"))
+              .withUserInteractorForResultProvider(new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+              .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+              .buildAndInitialize();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private static View getDefaultView(VirtualModel vsum) {
