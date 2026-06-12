@@ -109,7 +109,11 @@ public class VSUMExampleTest {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
-    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    // ChangeRecordingView records the setName() call as a ReplaceSingleValuedEAttribute, ensuring
+    // ComponentRenamed fires. ChangeDerivingView (state diff) would produce DELETE+CREATE for a
+    // rename because EMFCompare proximity matching fails when the old and new names are too
+    // dissimilar, which bypasses the annotation guard entirely.
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeRecordingTrait();
     view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
     view.setAnnotation(Author.class, new Author("methodologist"));
     view.commitChanges();
@@ -128,7 +132,8 @@ public class VSUMExampleTest {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
-    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    // See renameComponent for why ChangeRecordingView is used here instead of ChangeDerivingView.
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeRecordingTrait();
     view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
     view.setAnnotation(Author.class, new Author("methodologist"));
     view.commitChanges();
@@ -145,7 +150,8 @@ public class VSUMExampleTest {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
-    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
+    // See renameComponent for why ChangeRecordingView is used here instead of ChangeDerivingView.
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeRecordingTrait();
     view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
     // no Author annotation — rename reaction precondition is not satisfied
     view.commitChanges();

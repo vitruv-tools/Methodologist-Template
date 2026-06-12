@@ -51,8 +51,7 @@ routine createAndInsertEntity(model::System system, model::Component component) 
     val entity = new model2::Entity
   }
 	update {
-    println("createAndInsertEntity called with component.name=" + component.name)
-    entity.name = component.name
+entity.name = component.name
     mRoot.entities.add(entity)
 		addCorrespondenceBetween(component, entity)
 	}
