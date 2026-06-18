@@ -16,7 +16,6 @@
     <name>Vsum</name>
     <description />
 
-
     <dependencies>
         <!-- project dependencies -->
         <dependency>
@@ -28,6 +27,15 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>tools.vitruv.methodologisttemplate.consistency</artifactId>
             <version>${project.version}</version>
+        </dependency>
+
+        <!-- VitruviusOCL: cross-model constraint language and evaluator.
+             The version is intentionally hardcoded here and not managed via a shared property,
+             as VitruviusOCL is versioned independently from the Vitruvius core (vitruv.version). -->
+        <dependency>
+            <groupId>tools.vitruv</groupId>
+            <artifactId>vitruvOCL</artifactId>
+            <version>1.0.0</version>
         </dependency>
 
         <!-- Vitruvius dependencies -->
