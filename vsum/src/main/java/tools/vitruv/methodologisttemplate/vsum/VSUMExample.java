@@ -1,5 +1,6 @@
 package tools.vitruv.methodologisttemplate.vsum;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
@@ -36,7 +37,7 @@ public class VSUMExample {
   /** Storage folder for the VSUM; must be the exact same {@link Path} used for registerRoot. */
   private static final Path STORAGE_FOLDER = Path.of("vsumexample").toAbsolutePath();
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
     // Required so EMF knows how to create/load a Resource for the .model file registered below;
     // without it, ResourceSet#createResource() returns null for unrecognized file extensions.
     Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new XMIResourceFactoryImpl());
@@ -101,7 +102,7 @@ public class VSUMExample {
         });
   }
 
-  private static VirtualModel createDefaultVirtualModel() {
+  private static VirtualModel createDefaultVirtualModel() throws IOException {
     return new VirtualModelBuilder()
         .withStorageFolder(STORAGE_FOLDER)
         .withUserInteractorForResultProvider(
