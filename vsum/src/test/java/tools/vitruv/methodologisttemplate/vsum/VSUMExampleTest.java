@@ -26,7 +26,7 @@ import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
-import tools.vitruv.dsls.vitruvOCL.pipeline.VitruvOCL;
+import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 
 /**
  * This class provides an example how to define and use a VSUM.
@@ -40,9 +40,12 @@ public class VSUMExampleTest {
 
   /**
    * Path to the OCL constraint file, located alongside the Reactions in the consistency module.
+   *
+   * <p>Surefire forks the test JVM with the {@code vsum} module directory (not the repository
+   * root) as the working directory, so this path must climb one level up first.
    */
   private static final java.nio.file.Path CONSTRAINT_FILE = java.nio.file.Path.of(
-      "consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
+      "../consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
 
   @BeforeAll
   static void setup() {
@@ -204,9 +207,17 @@ public class VSUMExampleTest {
     VitruvOCL.registerVSUM(vsum);
 
     var result = VitruvOCL.evaluateConstraints(CONSTRAINT_FILE);
-    Assertions.assertTrue(result.allSatisfied(),
-        "Expected all OCL constraints to be satisfied after component insertion, but violations were found: "
-            + result.getResults());
+    Assertions.assertTrue(
+        result.allSatisfied(),
+        () -> {
+          var problems = new java.util.ArrayList<>(result.getViolatedConstraints());
+          problems.addAll(result.getFailedConstraints());
+          return "Expected all OCL constraints to be satisfied after component insertion ("
+              + result.getSummary()
+              + "):\n"
+              + problems.stream().map(Object::toString).collect(java.util.stream.Collectors.joining("\n"))
+              + "\n";
+        });
   }
 
   private void addSystem(VirtualModel vsum, Path projectPath) {

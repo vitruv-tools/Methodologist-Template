@@ -197,11 +197,18 @@ Each constraint follows the VitruviusOCL syntax:
 
 ```ocl
 context model::Component inv ComponentHasCorrespondingEntity:
+    @severity CRITICAL
+    @message "Component {self.name} must have exactly one corresponding Entity in model2"
     model2::Entity.allInstances().select(~).size() == 1
 ```
 
 - `context` specifies which metaclass is the subject of the constraint.
 - `inv` introduces an invariant with a name.
+- `@severity` is optional (one of `CRITICAL`, `MAJOR`, `MINOR`, `WARNING`, `INFO`; defaults to
+  `WARNING` when omitted) and `@message` is an optional human-readable description shown on
+  violation. Both go between the `:` and the constraint body. `@message` supports `{self}` and
+  `{self.<attribute>}` interpolation only — arbitrary expressions like `{self.entities.size()}`
+  are not evaluated.
 - `model2::Entity.allInstances().select(~)` navigates the correspondence model: it returns all
   `Entity` instances in `model2` that correspond to the current `self` (the `Component`).
 
@@ -211,14 +218,18 @@ which makes OCL the right tool for it.
 
 ```ocl
 context model2::Entity inv EntityNameIsNotUnnamed:
+    @severity MAJOR
+    @message "Entity {self.name} must not be named \"unnamed\""
     self.name != "unnamed"
 ```
 
 ### 2. Registering the VSUM
 
-In your VSUM setup code (e.g. in a test or in `VSUMExample.java`), call:
+In your VSUM setup code (e.g. in a test or in `VSUMExample.java`), import the evaluator and call:
 
 ```java
+import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
+
 VitruvOCL.registerVSUM(vsum);
 ```
 

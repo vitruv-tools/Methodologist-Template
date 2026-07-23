@@ -6,6 +6,9 @@ target/
 *.log
 .mvn/wrapper/*.jar
 
+# VSUM storage created by running VSUMExample.main() (used by the vitruvocl VS Code extension)
+/vsumexample/
+
 # Eclipse
 META-INF
 build.properties

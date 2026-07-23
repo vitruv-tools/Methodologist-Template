@@ -5,6 +5,9 @@
 --
 -- Syntax notes (OCL#):
 --   - context <Namespace>::<Metaclass> inv <ConstraintName>:
+--   - @severity CRITICAL|MAJOR|MINOR|WARNING|INFO (optional, defaults to WARNING)
+--   - @message "..." (optional); supports {self} and {self.<attribute>} interpolation only
+--     (no arbitrary expressions, e.g. {self.entities.size()} is not interpolated)
 --   - Correspondence navigation uses collection operations with the ~ operator:
 --       collection.exists(~)           -- at least one correspondence exists
 --       collection.select(~)           -- all corresponding elements
@@ -16,19 +19,27 @@
 -- Every Component in model must have exactly one corresponding Entity in model2.
 -- This ensures that the Reactions have correctly propagated each Component insertion.
 context model::Component inv ComponentHasCorrespondingEntity:
+    @severity CRITICAL
+    @message "Component {self.name} must have exactly one corresponding Entity in model2"
     model2::Entity.allInstances().select(~).size() == 1
 
 -- The name of each Component must match the name of its corresponding Entity.
 -- This ensures that renaming reactions have kept both models in sync.
 context model::Component inv ComponentNameMatchesEntityName:
+    @severity MAJOR
+    @message "Component {self.name} has a corresponding Entity whose name does not match"
     model2::Entity.allInstances().select(~).forAll(e | e.name == self.name)
 
 -- Every Component must have at least one corresponding element in model2.
 -- Equivalent to the existence check expressed via exists(~).
 context model::Component inv ComponentHasCorrespondence:
+    @severity CRITICAL
+    @message "Component {self.name} has no corresponding element in model2"
     model2::Entity.allInstances().exists(~)
 
 -- Each Link in model2 must reference at least two entities,
 -- reflecting the structural constraint defined in model2.ecore (lowerBound=2).
 context model2::Link inv LinkHasAtLeastTwoEntities:
+    @severity MAJOR
+    @message "{self} does not reference at least two entities"
     self.entities.size() >= 2
