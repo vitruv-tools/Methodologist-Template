@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.vitruv.change.propagation.ChangePropagationMode;
 import tools.vitruv.change.testutils.TestUserInteraction;
+import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 import tools.vitruv.framework.views.CommittableView;
 import tools.vitruv.framework.views.View;
 import tools.vitruv.framework.views.ViewTypeFactory;
@@ -26,8 +27,24 @@ import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
 
-/** This class provides an example how to define and use a VSUM. */
+/**
+ * This class provides an example how to define and use a VSUM.
+ *
+ * <p>It also demonstrates how to integrate VitruviusOCL for constraint-based consistency checking.
+ * Constraints are defined in {@code constraints.ocl} and can be evaluated manually via
+ * {@link VitruvOCL#evaluateConstraints(java.nio.file.Path)} or automatically after every change
+ * propagation by registering a {@link tools.vitruv.change.composite.propagation.ChangePropagationListener}.
+ */
 public class VSUMExampleTest {
+
+  /**
+   * Path to the OCL constraint file, located alongside the Reactions in the consistency module.
+   *
+   * <p>Surefire forks the test JVM with the {@code vsum} module directory (not the repository
+   * root) as the working directory, so this path must climb one level up first.
+   */
+  private static final java.nio.file.Path CONSTRAINT_FILE = java.nio.file.Path.of(
+      "../consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
 
   @BeforeAll
   static void setup() {
@@ -37,54 +54,26 @@ public class VSUMExampleTest {
   }
 
   @Test
-  void reloadEmptyVirtualModel(@TempDir Path tempDir) {
-    InternalVirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void reloadEmptyVirtualModel(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
     vsum.dispose();
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+    vsum = createDefaultVirtualModel(tempDir);
   }
 
   @Test
-  void reloadFilledVirtualModel(@TempDir Path tempDir) {
-    InternalVirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void reloadFilledVirtualModel(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     vsum.dispose();
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+    vsum = createDefaultVirtualModel(tempDir);
     // Assert that the reloaded virtual model contains the changes we made before disposing it
     Assertions.assertEquals(1, getDefaultView(vsum, List.of(System.class)).getRootObjects().size());
     Assertions.assertEquals(1, getDefaultView(vsum, List.of(Root.class)).getRootObjects().size());
   }
 
   @Test
-  void systemInsertionAndPropagationTest(@TempDir Path tempDir) {
-    VirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void systemInsertionAndPropagationTest(@TempDir Path tempDir) throws IOException {
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     // assert that the directly added System is present
     Assertions.assertEquals(1, getDefaultView(vsum, List.of(System.class)).getRootObjects().size());
@@ -94,14 +83,8 @@ public class VSUMExampleTest {
   }
 
   @Test
-  void insertComponent(@TempDir Path tempDir) {
-    InternalVirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void insertComponent(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
     Assertions.assertTrue(
@@ -129,14 +112,8 @@ public class VSUMExampleTest {
   }
 
   @Test
-  void insertRouter(@TempDir Path tempDir) {
-    InternalVirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void insertRouter(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addRouter(vsum);
     modifyView(
@@ -172,15 +149,9 @@ public class VSUMExampleTest {
   }
 
   @Test
-  void renameComponent(@TempDir Path tempDir) {
+  void renameComponent(@TempDir Path tempDir) throws IOException {
     final String newName = "newName";
-    VirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
     modifyView(
@@ -213,14 +184,8 @@ public class VSUMExampleTest {
   }
 
   @Test
-  void deleteComponent(@TempDir Path tempDir) {
-    VirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void deleteComponent(@TempDir Path tempDir) throws IOException {
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
     modifyView(
@@ -240,14 +205,8 @@ public class VSUMExampleTest {
   }
 
   @Test
-  void testLink(@TempDir Path tempDir) {
-    VirtualModel vsum = null;
-    try {
-      vsum = createDefaultVirtualModel(tempDir);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
+  void testLink(@TempDir Path tempDir) throws IOException {
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
 
     // add two components, protocol and add a link between them
@@ -284,6 +243,36 @@ public class VSUMExampleTest {
                   && root.getLinks().get(0).getEntities().stream()
                       .allMatch(c -> c.getName().startsWith("component"));
             }));
+  }
+
+  /**
+   * Demonstrates manual constraint evaluation using VitruviusOCL.
+   *
+   * <p>After inserting a Component and committing the change, the Reactions create a corresponding
+   * Entity in model2. The OCL constraints in {@code constraints.ocl} are then evaluated manually
+   * to verify that the VSUM is in a consistent state.
+   */
+  @Test
+  void constraintsAreSatisfiedAfterComponentInsert(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+
+    // Register the VSUM so VitruviusOCL can access model instances and correspondences.
+    VitruvOCL.registerVSUM(vsum);
+
+    var result = VitruvOCL.evaluateConstraints(CONSTRAINT_FILE);
+    Assertions.assertTrue(
+        result.allSatisfied(),
+        () -> {
+          var problems = new java.util.ArrayList<>(result.getViolatedConstraints());
+          problems.addAll(result.getFailedConstraints());
+          return "Expected all OCL constraints to be satisfied after component insertion ("
+              + result.getSummary()
+              + "):\n"
+              + problems.stream().map(Object::toString).collect(java.util.stream.Collectors.joining("\n"))
+              + "\n";
+        });
   }
 
   private void addSystem(VirtualModel vsum, Path projectPath) {
