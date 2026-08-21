@@ -275,3 +275,92 @@ vsum.addChangePropagationListener(new ChangePropagationListener() {
 
 From this point on, every `commitChanges()` will automatically trigger constraint evaluation —
 no further calls are needed. See `VSUMExample.java` for the full working example.
+
+## Example Task 4: Mapping Reactions to Constraints
+
+`VitruvOCL.evaluateConstraints(...)` always checks every constraint in `constraints.ocl`. That is
+fine when you evaluate manually, but once a specific Reaction has fired you usually only care
+about the constraints it could have broken — not the whole file. The
+`tools.vitruv.methodologisttemplate.consistency.registry` package (in the `consistency` module)
+provides exactly that: a hand-maintained mapping from Reaction classes to the `ConstraintRef`s
+they are responsible for.
+
+In Task 3 we added a new constraint, `EntityNameIsNotUnnamed`, on `model2::Entity`:
+
+```ocl
+context model2::Entity inv EntityNameIsNotUnnamed:
+    @severity MAJOR
+    @message "Entity {self.name} must not be named \"unnamed\""
+    self.name != "unnamed"
+```
+
+The `Entity` instances this constraint talks about are created by the
+`ComponentInsertedIntoSystemReaction` (via the `createAndInsertEntity` routine, see Task 1). So
+this new constraint belongs together with that Reaction: whenever
+`ComponentInsertedIntoSystemReaction` fires, `EntityNameIsNotUnnamed` is one of the things worth
+re-checking.
+
+### 1. Registering the Mapping
+
+Open `ProjectReactionConstraints.java` in
+`consistency/src/main/java/tools/vitruv/methodologisttemplate/consistency/registry/` and add the
+new `ConstraintRef` to the existing registration for `ComponentInsertedIntoSystemReaction`:
+
+```java
+registry.register(
+    ComponentInsertedIntoSystemReaction.class,
+    new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity"),
+    new ConstraintRef("model::Component", "ComponentHasCorrespondence"),
+    new ConstraintRef("model::Component", "ComponentNameMatchesEntityName"),
+    new ConstraintRef("model2::Entity", "EntityNameIsNotUnnamed"));
+```
+
+Note the `contextType` here is `"model2::Entity"`, matching the `context model2::Entity inv ...`
+line in the `.ocl` file exactly — including the namespace prefix. This matters because both
+`model` and `model2` declare a `Link` metaclass; without the namespace, `ConstraintRef`s for
+`model::Link` and `model2::Link` would be indistinguishable.
+
+### 2. Testing the Mapping
+
+Add an assertion to `ProjectReactionConstraintsTest.java` confirming the new entry is present:
+
+```java
+@Test
+void componentInsertedIntoSystemIncludesEntityNamingConstraint() {
+  ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
+
+  var constraints = registry.getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
+
+  assertTrue(constraints.contains(new ConstraintRef("model2::Entity", "EntityNameIsNotUnnamed")));
+}
+```
+
+### 3. Evaluating Only What a Reaction Could Have Broken
+
+With the mapping in place, `ConstraintEvaluationCoordinator` can filter a full
+`VitruvOCL.evaluateConstraints(...)` result down to just the constraints relevant to the
+Reactions that fired in a transaction:
+
+```java
+var registry = ProjectReactionConstraints.buildRegistry();
+var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE);
+var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+
+Set<Class<? extends Reaction>> firedReactions = Set.of(ComponentInsertedIntoSystemReaction.class);
+List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions);
+```
+
+`violations` will be empty as long as every `Entity` created by
+`ComponentInsertedIntoSystemReaction` has a proper name — but it will **not** report a violation
+of, say, `LinkHasAtLeastTwoEntities`, even if that constraint happens to be broken elsewhere in
+the VSUM, because `LinkInsertedIntoSystemReaction` did not fire in this set. That scoping is the
+entire point of the registry: each Reaction is checked against its own responsibilities, not
+against the whole constraint file.
+
+See `ConstraintEvaluationIntegrationTest.java` in the `consistency` module for a full, working
+end-to-end example against a real VSUM.
+
+**Note:** obtaining `firedReactions` automatically from the Reactions runtime, and automatically
+reverting a transaction when `evaluateFor(...)` returns violations, are both still open — see the
+"Known gap" note in the [README](./README.md#reaction-constraint-registry-scoping-evaluation-to-what-changed).
+For now, the fired-Reaction set must be supplied by the caller.

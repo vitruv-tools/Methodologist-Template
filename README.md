@@ -82,6 +82,70 @@ Constraint evaluation can be triggered in two ways:
 See `VSUMExample.java` for a complete example of the automatic integration, and
 `VSUMExampleTest.java` for a test case that demonstrates manual evaluation after change propagation.
 
+### Reaction-Constraint Registry: Scoping Evaluation to What Changed
+
+`VitruvOCL.evaluateConstraints(path)` always evaluates **every** constraint in the file. That is
+fine for a manual check, but after a single transaction you usually only care about the
+constraints that could plausibly have been broken by the Reactions that just fired — not the
+whole file. The `tools.vitruv.methodologisttemplate.consistency.registry` package (in the
+`consistency` module) provides a small, hand-maintained mapping from Reaction classes to the
+`ConstraintRef`s they are responsible for, plus a coordinator that uses it to filter the
+evaluation result down to what is actually relevant.
+
+The package contains:
+
+- **`ConstraintRef`** — identifies one constraint declaration by `(contextType, constraintName)`,
+  e.g. `new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity")`. The
+  `contextType` must include the namespace prefix (`model::` vs `model2::`), because both models
+  can declare a metaclass with the same simple name (e.g. `Link`).
+- **`ReactionConstraintRegistry`** — a `Class<? extends Reaction> -> List<ConstraintRef>` map with
+  `register(...)`, `getConstraintsFor(reactionClass)`, and `getConstraintsForAll(reactionClasses)`
+  (the union across several fired Reactions, deduplicated).
+- **`ProjectReactionConstraints`** — the actual project mapping, built by `buildRegistry()`. This
+  is the file you edit whenever you add a Reaction and a constraint that belongs together — see
+  below.
+- **`ConstraintEvaluationCoordinator`** + **`VitruvOCLGateway`/`VitruvOCLGatewayImpl`** — given the
+  set of Reaction classes that fired in a transaction, looks up the relevant `ConstraintRef`s and
+  filters `VitruvOCL.evaluateConstraints(...)`'s result down to just those, returning a
+  `List<ViolatedConstraint>` (empty if nothing relevant was violated).
+
+#### Adding a mapping entry
+
+Whenever you add a Reaction and a constraint that are meant to guard the same consistency rule,
+register the pair in `ProjectReactionConstraints.buildRegistry()`:
+
+```java
+registry.register(
+    ComponentInsertedIntoSystemReaction.class,
+    new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity"),
+    new ConstraintRef("model::Component", "ComponentHasCorrespondence"),
+    new ConstraintRef("model::Component", "ComponentNameMatchesEntityName"));
+```
+
+Because the key is the generated Reaction **class**, not a string, renaming or deleting a
+Reaction makes every registration referencing it fail to compile — there is no way for an entry
+to silently go stale. A Reaction with no matching constraint simply has no registration; that is
+expected, not an error (see the `SystemInsertedAsRootReaction` comment in the file).
+
+#### Evaluating only the relevant constraints
+
+```java
+var registry = ProjectReactionConstraints.buildRegistry();
+var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE);
+var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+
+Set<Class<? extends Reaction>> firedReactions = Set.of(ComponentInsertedIntoSystemReaction.class);
+List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions);
+```
+
+**Known gap:** there is currently no automatic way to obtain `firedReactions` from a running
+transaction — `ChangePropagationListener.finishedChangePropagation(...)` reports the resulting
+`PropagatedChange`s, not which Reaction classes produced them. Until that is resolved, callers
+must supply the fired-Reaction set themselves (see `ConstraintEvaluationIntegrationTest` in the
+`consistency` module for a worked example). Acting on a non-empty violation list — e.g. rolling
+back the transaction — is likewise out of scope until a `TransactionManager` with rollback
+capability exists.
+
 ### Interactive Evaluation via the VS Code Extension
 
 Constraints can also be evaluated interactively in VS Code with the `vitruvocl` extension. The
