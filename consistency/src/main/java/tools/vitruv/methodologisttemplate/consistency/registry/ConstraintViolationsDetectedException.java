@@ -1,6 +1,8 @@
 package tools.vitruv.methodologisttemplate.consistency.registry;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -13,7 +15,14 @@ import java.util.stream.Collectors;
  * unexpectedly". It propagates straight out of {@code commitChanges()} uncaught (Vitruvius does
  * not wrap or swallow exceptions thrown from a {@code ChangePropagationListener}), so a test using
  * {@link ReactionConstraintCheckingListener#failFast} goes red exactly at the commit that
- * triggered the violation, with every violated constraint listed in the failure message.
+ * triggered the violation.
+ *
+ * <p>The message names each violated {@link ConstraintKind} explicitly (e.g. "1 postcondition(s)
+ * violated", not a generic "1 constraint(s) violated") and, per violation, prints only {@link
+ * ViolatedConstraint#message()} -- the diagnostic VitruvOCL itself already produced (severity,
+ * the concrete object, the interpolated message) -- rather than a raw {@code
+ * ViolatedConstraint[contextType=..., constraintName=..., ...]} field dump that would just repeat
+ * what that diagnostic already states.
  */
 public final class ConstraintViolationsDetectedException extends AssertionError {
 
@@ -22,8 +31,21 @@ public final class ConstraintViolationsDetectedException extends AssertionError 
   }
 
   private static String buildMessage(List<ViolatedConstraint> violations) {
-    return violations.size()
-        + " constraint(s) violated by the Reaction(s) that just fired:\n"
-        + violations.stream().map(Object::toString).collect(Collectors.joining("\n"));
+    return summarizeByKind(violations)
+        + " violated by the Reaction(s) that just fired:\n"
+        + violations.stream().map(ViolatedConstraint::message).collect(Collectors.joining("\n"));
+  }
+
+  private static String summarizeByKind(List<ViolatedConstraint> violations) {
+    Map<ConstraintKind, Long> countByKind =
+        violations.stream()
+            .collect(
+                Collectors.groupingBy(
+                    ViolatedConstraint::kind,
+                    () -> new EnumMap<>(ConstraintKind.class),
+                    Collectors.counting()));
+    return countByKind.entrySet().stream()
+        .map(entry -> entry.getValue() + " " + entry.getKey().label() + "(s)")
+        .collect(Collectors.joining(" and "));
   }
 }

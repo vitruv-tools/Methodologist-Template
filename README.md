@@ -48,11 +48,10 @@ documented further down).
 The goal is to ensure that the reactions are keeping the model consistent.
 
 `VSUMExampleTest.createDefaultVirtualModel(...)` wires every VSUM it builds — so every test in
-that file — to the automatic hook via `HookedModel2Model2ChangePropagationSpecification` and
+that file, to the automatic hook via `HookedModel2Model2ChangePropagationSpecification` and
 `ReactionConstraintCheckingListener.failFast(...)` (see "Automatic checking, hooked into every
 commit" further down). That means any `commitChanges()` in any test in this file that violates a
-constraint registered for the Reaction it triggers throws immediately and fails that test — see
-`linkWithOnlyOneComponentFailsTheCommit` for a deliberate example of exactly that.
+constraint registered for the Reaction it triggers throws immediately and fails that test.
 
 Consider the following example taken from the `VSUMExampleTest.java` file:
 
@@ -63,7 +62,7 @@ Consider the following example taken from the `VSUMExampleTest.java` file:
     addSystem(vsum, tempDir);
     // assert that the directly added System is present
     Assertions.assertEquals(1, getDefaultView(vsum, List.of(System.class)).getRootObjects().size());
-    // as well as the Root that should be created by the Reactions, see templateReactions.reactions#14
+    // as well as the Root that should be created by the Reactions, see templateReactions.
     Assertions.assertEquals(1, getDefaultView(vsum, List.of(Root.class)).getRootObjects().size());
   }
 ```
@@ -88,7 +87,7 @@ consistency rules which can be evaluated against the VSUM at any point in time.
 ## Constraints with VitruviusOCL
 
 VitruviusOCL is a cross-model constraint language and evaluator for Vitruvius VSUMs.
-Constraints are written in OCL# syntax and stored in `.ocl` files next to the reactions.
+Constraints are written in OCL-like syntax and stored in `.ocl` files next to the reactions.
 
 The constraint file for this template is located at:
 ```
@@ -115,15 +114,16 @@ Constraint evaluation can be triggered in two ways:
   Vitruvius will call `finishedChangePropagation()` automatically after each `commitChanges()` once
   all Reactions have executed — making it the ideal place to invoke the constraint evaluator.
 
-See `VSUMExample.java` for a complete example of the automatic integration, and
-`VSUMExampleTest.java` for a test case that demonstrates manual evaluation after change propagation.
+See `VSUMExampleTest.java` for a test case that demonstrates manual evaluation after change
+propagation. `VSUMExample.java` demonstrates automatic integration too, but via the
+Reaction-Constraint Registry's hook (see below) rather than a hand-rolled listener — both it and
+`VSUMExampleTest.createDefaultVirtualModel` wire up the exact same mechanism.
 
 ### Reaction-Constraint Registry: Scoping Evaluation to What Changed
 
 `VitruvOCL.evaluateConstraints(path)` always evaluates **every** constraint in the file. That is
 fine for a manual check, but after a single transaction you usually only care about the
-constraints that could plausibly have been broken by the Reactions that just fired — not the
-whole file. The `tools.vitruv.methodologisttemplate.consistency.registry` package (in the
+constraints that could plausibly have been broken by the Reactions that just fired. The `tools.vitruv.methodologisttemplate.consistency.registry` package (in the
 `consistency` module) provides a small, hand-maintained mapping from Reaction classes to the
 `ConstraintRef`s they are responsible for, plus a coordinator that uses it to filter the
 evaluation result down to what is actually relevant.
@@ -162,39 +162,12 @@ registry.register(
 ```
 
 Because the key is the generated Reaction **class**, not a string, renaming or deleting a
-Reaction makes every registration referencing it fail to compile — there is no way for an entry
-to silently go stale. A Reaction with no matching constraint simply has no registration; that is
+Reaction makes every registration referencing it fail to compile. A Reaction with no matching constraint simply has no registration; that is
 expected, not an error (see the `SystemInsertedAsRootReaction` comment in the file).
-
-The `(contextType, constraintName)` pair itself, however, is just two strings — nothing stops a
-typo like `"ComponentHasCorrespondingEntty"` from compiling. `ConstraintEvaluationCoordinator`
-guards against this at evaluation time: it checks every relevant `ConstraintRef` against the full
-set of constraints actually declared in the evaluated `.ocl` file(s) (regardless of pass/fail) and
-throws `UnknownConstraintException` — naming the unrecognized ref(s) and listing what *is*
-declared — instead of silently never checking a misspelled or removed constraint. See
-`ConstraintEvaluationCoordinatorTest.throwsWhenRegisteredConstraintDoesNotExistInAnyEvaluatedFile`.
-
-#### Evaluating only the relevant constraints (manual)
-
-```java
-var registry = ProjectReactionConstraints.buildRegistry();
-var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
-var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
-
-Set<Class<? extends Reaction>> firedReactions = Set.of(ComponentInsertedIntoSystemReaction.class);
-List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions);
-```
-
-This requires you to already know which Reactions fired. See
-`ConstraintEvaluationIntegrationTest` in the `consistency` module for a worked example. Acting on
-a non-empty violation list — e.g. rolling back the transaction — is out of scope until a
-`TransactionManager` with rollback capability exists.
 
 #### Automatic checking, hooked into every commit
 
-Figuring out `firedReactions` yourself is only necessary if you evaluate manually. For automatic,
-zero-argument checking after every commit, three more classes in the same package wire the
-registry directly into Reaction execution:
+For automatic, zero-argument checking after every commit, three more classes in the same package wire the registry directly into Reaction execution:
 
 - **`FiredReactionsCollector`** — accumulates the Reaction classes that actually fired during the
   current transaction.
@@ -209,8 +182,11 @@ registry directly into Reaction execution:
   `HookedReaction` instead of bare. Use it in place of `Model2Model2ChangePropagationSpecification`
   when building the VSUM.
 - **`ReactionConstraintCheckingListener`** — a `ChangePropagationListener` that, once change
-  propagation for a transaction finishes, drains the collector and calls
-  `ConstraintEvaluationCoordinator.evaluateFor(...)` automatically.
+  propagation for a transaction finishes, drains the collector, reconstructs the transaction from
+  the `PropagatedChange`s it observed (original edit plus every consequential change the fired
+  Reactions made), and calls the transaction-aware
+  `ConstraintEvaluationCoordinator.evaluateFor(Set, List)` automatically — so `pre`/`post`
+  constraints get evaluated for real here, not skipped.
 
 ```java
 var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
@@ -230,61 +206,19 @@ vsum.addChangePropagationListener(
 ```
 
 From this point on, every `commitChanges()` automatically checks exactly the constraints relevant
-to whatever Reactions fired in that transaction — no further calls needed. See
-`AutomaticConstraintCheckingIntegrationTest` in the `consistency` module for two full working
-examples: one that captures violations into a list and asserts on it, and one using `failFast`
-that asserts the offending `commitChanges()` call itself throws.
-
-**`ReactionConstraintCheckingListener.failFast(...)` vs. the plain constructor:** the plain
-constructor just hands your `Consumer<List<ViolatedConstraint>>` the violations and moves on —
-useful for logging, but a callback that only logs leaves a test **green** even though a Reaction
-just violated a registered constraint. `failFast(...)` instead throws
-`ConstraintViolationsDetectedException` — an `AssertionError` subtype — naming every violated
-constraint. Vitruvius does not catch or wrap exceptions thrown from a
-`ChangePropagationListener`, so it propagates straight out of the `commitChanges()` call that
-triggered it, turning any test that wires in `failFast` red exactly at that commit, with a message
-listing what was violated. Use the plain constructor only where you deliberately want to keep
-going after a violation (e.g. collecting several across a longer scenario) — for anything meant to
-guarantee "this must never happen", use `failFast`.
-
-**Why a `HookedReaction` wrapper instead of a listener alone:**
-`ChangePropagationListener.finishedChangePropagation(Iterable<PropagatedChange>)` tells you a
-transaction finished, but each `PropagatedChange` only carries the resulting
-`VitruviusChange`s — not which Reaction class produced them. The only place that information is
-observable is at the Reaction itself, which is why the wrapping happens at registration
-(`setup()`), not at the listener.
-
-**Implementation note if you extend this:** `AbstractReactionsChangePropagationSpecification`
-(the reactions-runtime base class) clears its Reaction list and re-invokes `setup()` before
-*every* transactional-change round via `setUserInteractor(...)` — not just once at construction —
-presumably so generated Reactions, which hold per-change instance fields, never carry stale state
-between rounds. `HookedModel2Model2ChangePropagationSpecification.setup()` therefore only creates
-its `FiredReactionsCollector` the first time (guarded by a null check) and reuses it on every
-subsequent re-invocation; creating a fresh one each time would silently disconnect it from
-whatever `ReactionConstraintCheckingListener` was built with the original reference.
-
-Acting on a non-empty violation list (e.g. rolling back the transaction) is still out of scope
-until a `TransactionManager` with rollback capability exists — the listener above only reports.
+to whatever Reactions fired in that transaction, no further calls needed.
 
 #### `pre`/`post` example: `prepost-example.ocl`
 
-`consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl`
-demonstrates the same registry workflow using OCL#'s `pre`/`post` keywords instead of `inv`,
-against the metaclasses already mapped to Reactions above. **Known limitation:** as of the
-`vitruvocl-language` snapshot this project currently depends on, `pre`/`post` blocks parse and
-type-check correctly but are never evaluated for truthiness — the runtime's `EvaluationVisitor`
-implements `visitInvCS(...)` but has no `visitPreCS(...)`/`visitPostCS(...)` override, so every
-`pre`/`post` constraint is reported as satisfied regardless of its body. This is expected to be
-fixed upstream; nothing on this side (`ConstraintRef`, `ReactionConstraintRegistry`,
-`ConstraintEvaluationCoordinator`, `VitruvOCLGatewayImpl`) needs to change once it is, since they
-already match `pre`/`post` headers the same way as `inv`. See `PrePostConstraintWorkflowTest` in
-the `consistency` module — its second test case documents exactly this limitation and is meant
-to start failing (by design) once the upstream fix lands, as a signal to flip its assertion.
+`consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl` demonstrates the same registry workflow using OCL's `pre`/`post` keywords instead of `inv`,
+against the metaclasses already mapped to Reactions above.
+
+**`pre`/`post` are genuinely evaluated — but only if you evaluate against a transaction.**
 
 ### Interactive Evaluation via the VS Code Extension
 
 Constraints can also be evaluated interactively in VS Code with the `vitruvocl` extension. The
-extension evaluates constraints against files on disk — it does not talk to a running JVM — so it
+extension evaluates constraints against files on disk — it does not talk to a running JVM, so it
 needs a persisted VSUM (model instances plus a `.correspondence` file) to exist somewhere in the
 workspace before it can run anything.
 

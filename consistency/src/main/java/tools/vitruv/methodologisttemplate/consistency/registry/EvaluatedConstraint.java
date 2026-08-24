@@ -8,7 +8,8 @@ package tools.vitruv.methodologisttemplate.consistency.registry;
  * .ocl file at all", the latter being a {@link UnknownConstraintException}-worthy configuration
  * error rather than a real violation.
  */
-public record EvaluatedConstraint(String contextType, String constraintName, boolean satisfied, String message) {
+public record EvaluatedConstraint(
+    String contextType, String constraintName, ConstraintKind kind, boolean satisfied, String message) {
   ConstraintRef ref() {
     return new ConstraintRef(contextType, constraintName);
   }

@@ -5,19 +5,26 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.eclipse.emf.ecore.EObject;
+import tools.vitruv.change.atomic.EChange;
+import tools.vitruv.dsls.vitruvocl.common.CompileError;
 import tools.vitruv.dsls.vitruvocl.pipeline.ConstraintResult;
+import tools.vitruv.dsls.vitruvocl.pipeline.FileError;
 import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
+import tools.vitruv.dsls.vitruvocl.pipeline.Warning;
 
 /**
- * Wraps {@link VitruvOCL#evaluateConstraints(Path)} for one or more constraint files, combining
- * their results. Multiple files matter here because {@code ProjectReactionConstraints} maps a
- * single Reaction to constraints spread across more than one {@code .ocl} file (e.g. both
- * {@code constraints.ocl} and {@code prepost-example.ocl}) -- evaluating only one of them would
- * make every {@link ConstraintRef} declared solely in the other look "unknown" to {@link
- * ConstraintEvaluationCoordinator}'s validation, even though it is perfectly valid.
+ * Wraps {@link VitruvOCL#evaluateConstraints(Path)}/{@link VitruvOCL#evaluateConstraints(Path,
+ * List)} for one or more constraint files, combining their results. Multiple files matter here
+ * because {@code ProjectReactionConstraints} maps a single Reaction to constraints spread across
+ * more than one {@code .ocl} file (e.g. both {@code constraints.ocl} and {@code
+ * prepost-example.ocl}) -- evaluating only one of them would make every {@link ConstraintRef}
+ * declared solely in the other look "unknown" to {@link ConstraintEvaluationCoordinator}'s
+ * validation, even though it is perfectly valid.
  *
- * <p>{@link ConstraintResult#getConstraint()} does not expose the context type and constraint
- * name as separate fields — it returns the raw declaration text, e.g.
+ * <p>{@link ConstraintResult#getConstraint()} does not expose the context type, constraint kind,
+ * and constraint name as separate fields — it returns the raw declaration text, e.g.
  *
  * <pre>{@code
  * context model::Component inv ComponentHasCorrespondingEntity:
@@ -25,20 +32,22 @@ import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
  *     ...
  * }</pre>
  *
- * so {@link #parseRef(String)} extracts the {@code (contextType, constraintName)} pair from the
+ * so {@link #parseHeader(String)} extracts {@code (contextType, kind, constraintName)} from the
  * first line via regex, matching the {@code context <namespace>::<Type> (inv|pre|post) <Name>:}
- * syntax documented in {@code constraints.ocl}. {@code pre}/{@code post} are OCL# keywords too
- * (see {@code prepost-example.ocl}) — as of the currently used vitruvocl-language snapshot they
- * parse and type-check like {@code inv} but are not yet evaluated for truthiness by the runtime
- * (its {@code EvaluationVisitor} has no {@code visitPreCS}/{@code visitPostCS} override), so they
- * are still matched here for forward-compatibility and so a compile-time failure on a pre/post
- * declaration (which does reach {@link ConstraintResult#getConstraint()}) parses correctly
- * instead of throwing.
+ * syntax documented in {@code constraints.ocl}.
+ *
+ * <p>{@link #buildMessage(ConstraintResult)} deliberately does not use {@link
+ * ConstraintResult#toString()} -- that wraps each violation in vitruvocl-language's own display
+ * formatting (a "✓ SATISFIED"/"✗ VIOLATED" header, then a "WARNINGS (n):" section with a
+ * dashed-line box around each one, even though these are genuine violations, not warnings). It
+ * reads the same information from the structured accessors ({@link Warning#getMessage()}, {@link
+ * CompileError#getMessage()}, {@link FileError#getMessage()}) instead, which is exactly the
+ * {@code @message} text (with {@code {self...}} interpolation already applied) and nothing else.
  */
 public final class VitruvOCLGatewayImpl implements VitruvOCLGateway {
 
   private static final Pattern CONSTRAINT_HEADER =
-      Pattern.compile("context\\s+(\\S+)\\s+(?:inv|pre|post)\\s+(\\w+)\\s*:");
+      Pattern.compile("context\\s+(\\S+)\\s+(inv|pre|post)\\s+(\\w+)\\s*:");
 
   private final List<Path> constraintFiles;
 
@@ -55,20 +64,49 @@ public final class VitruvOCLGatewayImpl implements VitruvOCLGateway {
         .collect(Collectors.toList());
   }
 
-  private EvaluatedConstraint toEvaluatedConstraint(ConstraintResult constraintResult) {
-    ConstraintRef ref = parseRef(constraintResult.getConstraint());
-    boolean satisfied = constraintResult.isSuccess() && constraintResult.isSatisfied();
-    return new EvaluatedConstraint(
-        ref.contextType(), ref.constraintName(), satisfied, constraintResult.toString());
+  @Override
+  public List<EvaluatedConstraint> evaluateAll(List<EChange<EObject>> transaction) {
+    return constraintFiles.stream()
+        .map(file -> VitruvOCL.evaluateConstraints(file, transaction))
+        .flatMap(result -> result.getResults().stream())
+        .map(this::toEvaluatedConstraint)
+        .collect(Collectors.toList());
   }
 
-  private static ConstraintRef parseRef(String rawConstraintDeclaration) {
+  private EvaluatedConstraint toEvaluatedConstraint(ConstraintResult constraintResult) {
+    Matcher header = parseHeader(constraintResult.getConstraint());
+    boolean satisfied = constraintResult.isSuccess() && constraintResult.isSatisfied();
+    return new EvaluatedConstraint(
+        header.group(1),
+        header.group(3),
+        ConstraintKind.fromKeyword(header.group(2)),
+        satisfied,
+        buildMessage(constraintResult));
+  }
+
+  private static String buildMessage(ConstraintResult constraintResult) {
+    if (!constraintResult.isSuccess()) {
+      return Stream.concat(
+              constraintResult.getCompilerErrors().stream().map(CompileError::getMessage),
+              constraintResult.getFileErrors().stream().map(FileError::getMessage))
+          .collect(Collectors.joining("; "));
+    }
+    if (!constraintResult.isSatisfied()) {
+      return constraintResult.getWarnings().stream()
+          .filter(warning -> warning.getType() == Warning.WarningType.CONSTRAINT_VIOLATION)
+          .map(Warning::getMessage)
+          .collect(Collectors.joining("; "));
+    }
+    return "satisfied";
+  }
+
+  private static Matcher parseHeader(String rawConstraintDeclaration) {
     Matcher matcher = CONSTRAINT_HEADER.matcher(rawConstraintDeclaration);
     if (!matcher.find()) {
       throw new IllegalStateException(
-          "Could not parse (contextType, constraintName) from constraint declaration: "
+          "Could not parse (contextType, kind, constraintName) from constraint declaration: "
               + rawConstraintDeclaration);
     }
-    return new ConstraintRef(matcher.group(1), matcher.group(2));
+    return matcher;
   }
 }

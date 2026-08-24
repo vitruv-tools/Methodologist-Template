@@ -35,9 +35,9 @@ public final class ProjectReactionConstraints {
         new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity"),
         new ConstraintRef("model::Component", "ComponentHasCorrespondence"),
         new ConstraintRef("model::Component", "ComponentNameMatchesEntityName"),
-        // pre-/postconditions from prepost-example.ocl — see the "known limitation" note there:
-        // these currently always evaluate as satisfied until vitruvocl-language implements
-        // visitPreCS/visitPostCS.
+        // pre-/postconditions from prepost-example.ocl — genuinely evaluated when checked via
+        // the automatic Reaction-Constraint hook (a real transaction), skipped when checked via
+        // VitruvOCLGateway#evaluateAll() with no transaction — see that file's header comment.
         new ConstraintRef("model::Component", "ComponentHasNameBeforeSync"),
         new ConstraintRef("model::Component", "ComponentHasCorrespondingEntityAfterSync"));
 

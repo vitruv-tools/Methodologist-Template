@@ -1,7 +1,10 @@
 package tools.vitruv.methodologisttemplate.consistency.registry;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import org.eclipse.emf.ecore.EObject;
+import tools.vitruv.change.atomic.EChange;
 import tools.vitruv.change.atomic.uuid.Uuid;
 import tools.vitruv.change.composite.description.PropagatedChange;
 import tools.vitruv.change.composite.description.VitruviusChange;
@@ -67,9 +70,29 @@ public final class ReactionConstraintCheckingListener implements ChangePropagati
     if (firedReactions.isEmpty()) {
       return;
     }
-    var violations = coordinator.evaluateFor(firedReactions);
+    var transaction = collectTransaction(propagatedChanges);
+    var violations = coordinator.evaluateFor(firedReactions, transaction);
     if (!violations.isEmpty()) {
       onViolations.accept(violations);
     }
+  }
+
+  /**
+   * Flattens every {@link PropagatedChange} in this round into one transaction, so {@code
+   * @pre}/{@code OCLisNew}/{@code OCLisModified}/{@code OCLisDeleted} can reconstruct pre-state
+   * and see the full picture of what happened -- both the original edit the caller made ({@link
+   * PropagatedChange#getOriginalChange()}) and everything the fired Reactions did in response
+   * ({@link PropagatedChange#getConsequentialChanges()}). Omitting the consequential changes would
+   * make {@code OCLisNew}/{@code OCLisModified} blind to exactly the elements a postcondition
+   * typically wants to check -- the ones the Reaction itself just created or modified.
+   */
+  private static List<EChange<EObject>> collectTransaction(
+      Iterable<PropagatedChange> propagatedChanges) {
+    List<EChange<EObject>> transaction = new ArrayList<>();
+    for (PropagatedChange propagatedChange : propagatedChanges) {
+      transaction.addAll(propagatedChange.getOriginalChange().getEChanges());
+      transaction.addAll(propagatedChange.getConsequentialChanges().getEChanges());
+    }
+    return transaction;
   }
 }

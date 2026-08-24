@@ -44,8 +44,14 @@ class ConstraintEvaluationCoordinatorTest {
     when(ocl.evaluateAll())
         .thenReturn(
             List.of(
-                new EvaluatedConstraint("model::System", "SystemInsertedAsRoot", false, "Root missing"),
-                new EvaluatedConstraint("model::Component", "UnrelatedConstraint", false, "Irrelevant here")));
+                new EvaluatedConstraint(
+                    "model::System", "SystemInsertedAsRoot", ConstraintKind.INVARIANT, false, "Root missing"),
+                new EvaluatedConstraint(
+                    "model::Component",
+                    "UnrelatedConstraint",
+                    ConstraintKind.INVARIANT,
+                    false,
+                    "Irrelevant here")));
 
     var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
     var relevantViolations = coordinator.evaluateFor(Set.of(FakeReaction.class));
@@ -62,7 +68,10 @@ class ConstraintEvaluationCoordinatorTest {
 
     var ocl = mock(VitruvOCLGateway.class);
     when(ocl.evaluateAll())
-        .thenReturn(List.of(new EvaluatedConstraint("model::System", "SystemInsertedAsRoot", true, "OK")));
+        .thenReturn(
+            List.of(
+                new EvaluatedConstraint(
+                    "model::System", "SystemInsertedAsRoot", ConstraintKind.INVARIANT, true, "OK")));
 
     var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
     var relevantViolations = coordinator.evaluateFor(Set.of(FakeReaction.class));
@@ -79,7 +88,9 @@ class ConstraintEvaluationCoordinatorTest {
     var ocl = mock(VitruvOCLGateway.class);
     when(ocl.evaluateAll())
         .thenReturn(
-            List.of(new EvaluatedConstraint("model::System", "SomeOtherConstraint", true, "OK")));
+            List.of(
+                new EvaluatedConstraint(
+                    "model::System", "SomeOtherConstraint", ConstraintKind.INVARIANT, true, "OK")));
 
     var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
 

@@ -274,7 +274,9 @@ vsum.addChangePropagationListener(new ChangePropagationListener() {
 ```
 
 From this point on, every `commitChanges()` will automatically trigger constraint evaluation —
-no further calls are needed. See `VSUMExample.java` for the full working example.
+no further calls are needed. This raw pattern only logs violations, though, and does not scope
+evaluation to what actually changed; see Example Task 4 below and `VSUMExample.java` for the
+Reaction-Constraint Registry, which addresses both.
 
 ## Example Task 4: Mapping Reactions to Constraints
 
@@ -366,7 +368,12 @@ immediately instead of the constraint quietly never being checked.
 See `ConstraintEvaluationIntegrationTest.java` in the `consistency` module for a full, working
 end-to-end example against a real VSUM.
 
-**Note:** obtaining `firedReactions` automatically from the Reactions runtime, and automatically
-reverting a transaction when `evaluateFor(...)` returns violations, are both still open — see the
-"Known gap" note in the [README](./README.md#reaction-constraint-registry-scoping-evaluation-to-what-changed).
-For now, the fired-Reaction set must be supplied by the caller.
+**Note:** this task shows the manual, low-level path, where you supply `firedReactions` (and
+optionally a transaction) yourself. The project also has a fully automatic variant that needs
+neither: `HookedModel2Model2ChangePropagationSpecification` +
+`ReactionConstraintCheckingListener.failFast(...)` figure out which Reactions fired and assemble
+the transaction for you after every `commitChanges()` — see "Automatic checking, hooked into every
+commit" in the [README](./README.md#reaction-constraint-registry-scoping-evaluation-to-what-changed),
+and `VSUMExampleTest.createDefaultVirtualModel`/`VSUMExample.java` for where it's actually wired
+up in this project. Automatically reverting a transaction when violations are found is still
+open — that still needs a `TransactionManager` with rollback capability, which does not exist yet.

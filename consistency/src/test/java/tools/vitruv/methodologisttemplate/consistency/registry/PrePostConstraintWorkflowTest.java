@@ -9,11 +9,16 @@ import java.util.Set;
 import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
 import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.vitruv.change.atomic.EChange;
+import tools.vitruv.change.composite.description.TransactionalChange;
+import tools.vitruv.change.composite.recording.ChangeRecorder;
 import tools.vitruv.change.propagation.ChangePropagationMode;
 import tools.vitruv.change.testutils.TestUserInteraction;
 import tools.vitruv.dsls.reactions.runtime.reactions.Reaction;
@@ -31,17 +36,11 @@ import tools.vitruv.methodologisttemplate.model.model.System;
  * {@code prepost-example.ocl}, the file that uses OCL#'s {@code pre}/{@code post} syntax instead
  * of {@code inv}.
  *
- * <p><b>Read this before "fixing" this test:</b> as documented in {@code prepost-example.ocl} and
- * in {@link VitruvOCLGatewayImpl}, the vitruvocl-language snapshot currently in use does not
- * evaluate {@code pre}/{@code post} bodies for truthiness (no {@code visitPreCS}/{@code
- * visitPostCS} in its {@code EvaluationVisitor}) — every pre/post constraint is reported as
- * satisfied regardless of its actual body. That is why {@link
- * #componentWithBlankNameStillReportsNoViolations} deliberately creates a Component that
- * violates {@code ComponentHasNameBeforeSync} (blank name) and still asserts an *empty* violation
- * list: today, that is the only correct assertion. Once {@code visitPreCS}/{@code visitPostCS}
- * are implemented upstream, this test's second case should start failing — at that point, invert
- * the assertion to expect the violation, as proof the fix landed and the registry wiring picks it
- * up with no changes needed on this side.
+ * <p>Unlike {@link ConstraintEvaluationIntegrationTest} (which uses the transaction-less {@link
+ * ConstraintEvaluationCoordinator#evaluateFor(Set)} and therefore only ever exercises {@code
+ * inv}-equivalent, always-checked behavior), the tests here record a real transaction via {@link
+ * ChangeRecorder} and call {@link ConstraintEvaluationCoordinator#evaluateFor(Set, List)} — the
+ * genuinely-evaluating path — specifically so {@code pre}/{@code post} get exercised for real.
  */
 class PrePostConstraintWorkflowTest {
 
@@ -80,7 +79,29 @@ class PrePostConstraintWorkflowTest {
     view.commitChanges();
   }
 
-  private void addComponent(InternalVirtualModel vsum, String name) {
+  private System getSystem(InternalVirtualModel vsum) {
+    var selector = vsum.createSelector(ViewTypeFactory.createIdentityMappingViewType("default"));
+    selector.getSelectableElements().stream()
+        .filter(System.class::isInstance)
+        .forEach(e -> selector.setSelected(e, true));
+    return (System) selector.createView().getRootObjects(System.class).iterator().next();
+  }
+
+  /**
+   * Adds a Component (which triggers {@code ComponentInsertedIntoSystemReaction}) while recording
+   * every {@link EChange} touched by both the direct edit and the reaction's own consequential
+   * changes, mirroring how {@link ReactionConstraintCheckingListener} assembles the transaction it
+   * passes to {@link ConstraintEvaluationCoordinator#evaluateFor(Set, List)} in production.
+   */
+  private List<EChange<EObject>> addComponentRecordingTransaction(
+      InternalVirtualModel vsum, String name) {
+    System system = getSystem(vsum);
+    ResourceSet resourceSet = system.eResource().getResourceSet();
+
+    ChangeRecorder recorder = new ChangeRecorder(resourceSet);
+    recorder.addToRecording(resourceSet);
+    recorder.beginRecording();
+
     var selector = vsum.createSelector(ViewTypeFactory.createIdentityMappingViewType("default"));
     selector.getSelectableElements().stream()
         .filter(System.class::isInstance)
@@ -90,13 +111,16 @@ class PrePostConstraintWorkflowTest {
     component.setName(name);
     view.getRootObjects(System.class).iterator().next().getComponents().add(component);
     view.commitChanges();
+
+    TransactionalChange<EObject> change = recorder.endRecording();
+    return change.getEChanges();
   }
 
   @Test
   void wellFormedComponentReportsNoViolations(@TempDir Path tempDir) throws IOException {
     InternalVirtualModel vsum = createVsum(tempDir);
     addSystem(vsum, tempDir);
-    addComponent(vsum, "specialname");
+    List<EChange<EObject>> transaction = addComponentRecordingTransaction(vsum, "specialname");
 
     VitruvOCL.registerVSUM(vsum);
     var registry = ProjectReactionConstraints.buildRegistry();
@@ -106,18 +130,18 @@ class PrePostConstraintWorkflowTest {
     Set<Class<? extends Reaction>> firedReactions =
         Set.of(ComponentInsertedIntoSystemReaction.class);
 
-    List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions);
+    List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions, transaction);
 
     assertTrue(violations.isEmpty(), () -> "Expected no violations, got: " + violations);
   }
 
   @Test
-  void componentWithBlankNameStillReportsNoViolations(@TempDir Path tempDir) throws IOException {
+  void componentWithBlankNameReportsPreconditionViolation(@TempDir Path tempDir)
+      throws IOException {
     InternalVirtualModel vsum = createVsum(tempDir);
     addSystem(vsum, tempDir);
-    // Deliberately violates ComponentHasNameBeforeSync (a "pre" constraint). See the class
-    // Javadoc: this must currently still report zero violations.
-    addComponent(vsum, "");
+    // Violates ComponentHasNameBeforeSync (a "pre" constraint: self.name != "").
+    List<EChange<EObject>> transaction = addComponentRecordingTransaction(vsum, "");
 
     VitruvOCL.registerVSUM(vsum);
     var registry = ProjectReactionConstraints.buildRegistry();
@@ -127,13 +151,11 @@ class PrePostConstraintWorkflowTest {
     Set<Class<? extends Reaction>> firedReactions =
         Set.of(ComponentInsertedIntoSystemReaction.class);
 
-    List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions);
+    List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions, transaction);
 
     assertTrue(
-        violations.isEmpty(),
-        () ->
-            "pre/post are not yet evaluated by vitruvocl-language, so this must stay empty until"
-                + " visitPreCS/visitPostCS are implemented upstream — see class Javadoc. Got: "
-                + violations);
+        violations.stream()
+            .anyMatch(v -> v.ref().equals(new ConstraintRef("model::Component", "ComponentHasNameBeforeSync"))),
+        () -> "Expected ComponentHasNameBeforeSync to be reported as violated, got: " + violations);
   }
 }

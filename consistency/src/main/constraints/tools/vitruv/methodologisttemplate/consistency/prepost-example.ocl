@@ -7,17 +7,12 @@
 -- Reaction-Constraint Registry workflow end-to-end with pre/post constraints specifically,
 -- as requested for manual testing.
 --
--- KNOWN LIMITATION (tracked upstream, not in this project): as of the vitruvocl-language
--- 0.1.0-SNAPSHOT build currently used here, the evaluator's EvaluationVisitor implements
--- visitInvCS(...) but has no visitPreCS(...) / visitPostCS(...) override. "pre" and "post"
--- blocks therefore parse and type-check correctly (a genuine type error still fails, see
--- getFailedConstraints()) but are never evaluated for truthiness -- every pre/post constraint
--- below is currently reported as SATISFIED regardless of its body, even the deliberately
--- self-contradictory ones. This is expected to be fixed upstream; once visitPreCS/visitPostCS
--- are implemented, the constraints below should start reporting real violations without any
--- change needed on this side -- ConstraintRef/ReactionConstraintRegistry/
--- ConstraintEvaluationCoordinator/VitruvOCLGatewayImpl only match on (contextType,
--- constraintName), the same way for "inv", "pre", and "post".
+-- "pre"/"post" bodies below are genuinely evaluated (not skipped/vacuous) whenever the caller
+-- supplies a real transaction -- see VitruvOCLGateway#evaluateAll(List) and
+-- ReactionConstraintCheckingListener, which is what VSUMExampleTest#createDefaultVirtualModel
+-- wires up automatically for every commit. Without a transaction (VitruvOCLGateway#evaluateAll(),
+-- no args), pre/post blocks are skipped outright instead -- see vitruvocl-language's
+-- EvaluationVisitor#transactionSupported.
 --
 -- Syntax notes (OCL#):
 --   - context <Namespace>::<Metaclass> pre <ConstraintName>:  -- intended: before a Reaction fires
