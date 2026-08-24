@@ -1,0 +1,61 @@
+-- Example Pre-/Postcondition Constraints for the Methodologist Template
+--
+-- Unlike constraints.ocl (which uses OCL# invariants, "inv"), this file demonstrates the
+-- pre-/postcondition syntax ("pre" / "post") of the same OCL# language, applied to the
+-- metaclasses already mapped to Reactions in ProjectReactionConstraints.buildRegistry()
+-- (see tools.vitruv.methodologisttemplate.consistency.registry). It exists to exercise the
+-- Reaction-Constraint Registry workflow end-to-end with pre/post constraints specifically,
+-- as requested for manual testing.
+--
+-- KNOWN LIMITATION (tracked upstream, not in this project): as of the vitruvocl-language
+-- 0.1.0-SNAPSHOT build currently used here, the evaluator's EvaluationVisitor implements
+-- visitInvCS(...) but has no visitPreCS(...) / visitPostCS(...) override. "pre" and "post"
+-- blocks therefore parse and type-check correctly (a genuine type error still fails, see
+-- getFailedConstraints()) but are never evaluated for truthiness -- every pre/post constraint
+-- below is currently reported as SATISFIED regardless of its body, even the deliberately
+-- self-contradictory ones. This is expected to be fixed upstream; once visitPreCS/visitPostCS
+-- are implemented, the constraints below should start reporting real violations without any
+-- change needed on this side -- ConstraintRef/ReactionConstraintRegistry/
+-- ConstraintEvaluationCoordinator/VitruvOCLGatewayImpl only match on (contextType,
+-- constraintName), the same way for "inv", "pre", and "post".
+--
+-- Syntax notes (OCL#):
+--   - context <Namespace>::<Metaclass> pre <ConstraintName>:  -- intended: before a Reaction fires
+--   - context <Namespace>::<Metaclass> post <ConstraintName>: -- intended: after a Reaction fires
+--   - @severity / @message work exactly as with "inv" (see constraints.ocl for the full syntax
+--     notes; they are not repeated here).
+
+-- Precondition for ComponentInsertedIntoSystemReaction / ComponentRenamedReaction:
+-- a Component must have a non-empty name before it is synced into model2.
+context model::Component pre ComponentHasNameBeforeSync:
+    @severity CRITICAL
+    @message "Component must have a non-empty name before it is synced to model2"
+    self.name <> ""
+
+-- Postcondition for ComponentInsertedIntoSystemReaction:
+-- after the reaction fires, every Component must have exactly one corresponding Entity.
+context model::Component post ComponentHasCorrespondingEntityAfterSync:
+    @severity CRITICAL
+    @message "Component {self.name} must have exactly one corresponding Entity in model2 after sync"
+    model2::Entity.allInstances().select(~).size() == 1
+
+-- Postcondition for ComponentRenamedReaction:
+-- after the reaction fires, the corresponding Entity's name must match the Component's new name.
+context model2::Entity post EntityNameMatchesComponentAfterRename:
+    @severity MAJOR
+    @message "Entity {self.name} must match the name of its corresponding Component after a rename"
+    model::Component.allInstances().select(~).forAll(c | c.name == self.name)
+
+-- Precondition for LinkInsertedIntoSystemReaction / ComponentInsertedIntoLinkReaction:
+-- a Link must reference at least one Component before it is considered ready to sync.
+context model::Link pre LinkHasAtLeastOneComponentBeforeSync:
+    @severity MAJOR
+    @message "{self} must reference at least one Component before it is synced to model2"
+    self.components.size() >= 1
+
+-- Postcondition for LinkInsertedIntoSystemReaction / ComponentInsertedIntoLinkReaction:
+-- after the reactions fire, the corresponding Link in model2 must reference at least two entities.
+context model2::Link post LinkHasAtLeastTwoEntitiesAfterSync:
+    @severity MAJOR
+    @message "{self} must reference at least two entities after sync"
+    self.entities.size() >= 2

@@ -22,13 +22,19 @@ import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
  * }</pre>
  *
  * so {@link #parseRef(String)} extracts the {@code (contextType, constraintName)} pair from the
- * first line via regex, matching the {@code context <namespace>::<Type> inv <Name>:} syntax
- * documented in {@code constraints.ocl}.
+ * first line via regex, matching the {@code context <namespace>::<Type> (inv|pre|post) <Name>:}
+ * syntax documented in {@code constraints.ocl}. {@code pre}/{@code post} are OCL# keywords too
+ * (see {@code prepost-example.ocl}) — as of the currently used vitruvocl-language snapshot they
+ * parse and type-check like {@code inv} but are not yet evaluated for truthiness by the runtime
+ * (its {@code EvaluationVisitor} has no {@code visitPreCS}/{@code visitPostCS} override), so they
+ * are still matched here for forward-compatibility and so a compile-time failure on a pre/post
+ * declaration (which does reach {@link ConstraintResult#getConstraint()} via {@code
+ * getFailedConstraints()}) parses correctly instead of throwing.
  */
 public final class VitruvOCLGatewayImpl implements VitruvOCLGateway {
 
   private static final Pattern CONSTRAINT_HEADER =
-      Pattern.compile("context\\s+(\\S+)\\s+inv\\s+(\\w+)\\s*:");
+      Pattern.compile("context\\s+(\\S+)\\s+(?:inv|pre|post)\\s+(\\w+)\\s*:");
 
   private final Path constraintFile;
 

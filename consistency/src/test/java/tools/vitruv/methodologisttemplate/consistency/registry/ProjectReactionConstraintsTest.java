@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
+import mir.reactions.model2Model2.ComponentRenamedReaction;
 import mir.reactions.model2Model2.LinkInsertedIntoSystemReaction;
 import mir.reactions.model2Model2.SystemInsertedAsRootReaction;
 import org.junit.jupiter.api.Test;
@@ -26,12 +27,47 @@ class ProjectReactionConstraintsTest {
   }
 
   @Test
+  void componentInsertedIntoSystemIncludesPrePostExampleConstraints() {
+    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
+
+    var constraints = registry.getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
+
+    assertTrue(constraints.contains(new ConstraintRef("model::Component", "ComponentHasNameBeforeSync")));
+    assertTrue(
+        constraints.contains(
+            new ConstraintRef("model::Component", "ComponentHasCorrespondingEntityAfterSync")));
+  }
+
+  @Test
+  void componentRenamedIncludesPrePostExampleConstraint() {
+    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
+
+    var constraints = registry.getConstraintsFor(ComponentRenamedReaction.class);
+
+    assertTrue(
+        constraints.contains(
+            new ConstraintRef("model2::Entity", "EntityNameMatchesComponentAfterRename")));
+  }
+
+  @Test
   void linkInsertedIntoSystemHasExpectedConstraints() {
     ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
 
     var constraints = registry.getConstraintsFor(LinkInsertedIntoSystemReaction.class);
 
     assertTrue(constraints.contains(new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntities")));
+  }
+
+  @Test
+  void linkInsertedIntoSystemIncludesPrePostExampleConstraints() {
+    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
+
+    var constraints = registry.getConstraintsFor(LinkInsertedIntoSystemReaction.class);
+
+    assertTrue(
+        constraints.contains(new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync")));
+    assertTrue(
+        constraints.contains(new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntitiesAfterSync")));
   }
 
   @Test

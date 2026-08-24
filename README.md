@@ -146,6 +146,21 @@ must supply the fired-Reaction set themselves (see `ConstraintEvaluationIntegrat
 back the transaction — is likewise out of scope until a `TransactionManager` with rollback
 capability exists.
 
+#### `pre`/`post` example: `prepost-example.ocl`
+
+`consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl`
+demonstrates the same registry workflow using OCL#'s `pre`/`post` keywords instead of `inv`,
+against the metaclasses already mapped to Reactions above. **Known limitation:** as of the
+`vitruvocl-language` snapshot this project currently depends on, `pre`/`post` blocks parse and
+type-check correctly but are never evaluated for truthiness — the runtime's `EvaluationVisitor`
+implements `visitInvCS(...)` but has no `visitPreCS(...)`/`visitPostCS(...)` override, so every
+`pre`/`post` constraint is reported as satisfied regardless of its body. This is expected to be
+fixed upstream; nothing on this side (`ConstraintRef`, `ReactionConstraintRegistry`,
+`ConstraintEvaluationCoordinator`, `VitruvOCLGatewayImpl`) needs to change once it is, since they
+already match `pre`/`post` headers the same way as `inv`. See `PrePostConstraintWorkflowTest` in
+the `consistency` module — its second test case documents exactly this limitation and is meant
+to start failing (by design) once the upstream fix lands, as a signal to flip its assertion.
+
 ### Interactive Evaluation via the VS Code Extension
 
 Constraints can also be evaluated interactively in VS Code with the `vitruvocl` extension. The
