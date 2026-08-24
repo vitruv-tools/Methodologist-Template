@@ -46,6 +46,14 @@ Tests live in two places: `vsum/src/test` (VSUM setup, Reactions, and VitruviusO
 `ReactionConstraintRegistry`, `ConstraintEvaluationCoordinator`, the automatic hook, etc.,
 documented further down).
 The goal is to ensure that the reactions are keeping the model consistent.
+
+`VSUMExampleTest.createDefaultVirtualModel(...)` wires every VSUM it builds — so every test in
+that file — to the automatic hook via `HookedModel2Model2ChangePropagationSpecification` and
+`ReactionConstraintCheckingListener.failFast(...)` (see "Automatic checking, hooked into every
+commit" further down). That means any `commitChanges()` in any test in this file that violates a
+constraint registered for the Reaction it triggers throws immediately and fails that test — see
+`linkWithOnlyOneComponentFailsTheCommit` for a deliberate example of exactly that.
+
 Consider the following example taken from the `VSUMExampleTest.java` file:
 
 ```java

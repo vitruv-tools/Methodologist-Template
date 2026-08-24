@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
@@ -23,6 +22,12 @@ import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
 import tools.vitruv.framework.vsum.VirtualModelBuilder;
 import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
+import tools.vitruv.methodologisttemplate.consistency.registry.ConstraintEvaluationCoordinator;
+import tools.vitruv.methodologisttemplate.consistency.registry.ConstraintViolationsDetectedException;
+import tools.vitruv.methodologisttemplate.consistency.registry.HookedModel2Model2ChangePropagationSpecification;
+import tools.vitruv.methodologisttemplate.consistency.registry.ProjectReactionConstraints;
+import tools.vitruv.methodologisttemplate.consistency.registry.ReactionConstraintCheckingListener;
+import tools.vitruv.methodologisttemplate.consistency.registry.VitruvOCLGatewayImpl;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
@@ -32,8 +37,15 @@ import tools.vitruv.methodologisttemplate.model.model2.Root;
  *
  * <p>It also demonstrates how to integrate VitruviusOCL for constraint-based consistency checking.
  * Constraints are defined in {@code constraints.ocl} and can be evaluated manually via
- * {@link VitruvOCL#evaluateConstraints(java.nio.file.Path)} or automatically after every change
- * propagation by registering a {@link tools.vitruv.change.composite.propagation.ChangePropagationListener}.
+ * {@link VitruvOCL#evaluateConstraints(java.nio.file.Path)}. {@link #createDefaultVirtualModel}
+ * additionally wires up the Reaction-Constraint Registry's automatic hook (see the {@code
+ * consistency} module's {@code registry} package): every VSUM created by every test in this class
+ * uses {@link HookedModel2Model2ChangePropagationSpecification} and a {@link
+ * ReactionConstraintCheckingListener#failFast}, so any {@code commitChanges()} call below that
+ * violates a constraint registered against the Reaction it triggers throws immediately, failing
+ * that test with a message naming the violated constraint -- not just the scenarios explicitly
+ * about pre/post conditions, but every test in this file, since {@code
+ * ProjectReactionConstraints} already covers the Reactions exercised here.
  */
 public class VSUMExampleTest {
 
@@ -45,6 +57,8 @@ public class VSUMExampleTest {
    */
   private static final java.nio.file.Path CONSTRAINT_FILE = java.nio.file.Path.of(
       "../consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
+  private static final java.nio.file.Path PREPOST_CONSTRAINT_FILE = java.nio.file.Path.of(
+      "../consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl");
 
   @BeforeAll
   static void setup() {
@@ -246,6 +260,41 @@ public class VSUMExampleTest {
   }
 
   /**
+   * Proves the automatic hook wired into {@link #createDefaultVirtualModel} actually catches a
+   * real violation in this file, not just structurally staying green because nothing here happens
+   * to be broken. Deliberately commits a {@code model::Link} with only one Component, which the
+   * real (evaluated) {@code inv} constraint {@code LinkHasAtLeastTwoEntities} forbids -- unlike
+   * {@link #testLink} above, which correctly adds two.
+   */
+  @Test
+  void linkWithOnlyOneComponentFailsTheCommit(@TempDir Path tempDir) throws IOException {
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+
+    var exception =
+        Assertions.assertThrows(
+            ConstraintViolationsDetectedException.class,
+            () ->
+                modifyView(
+                    getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(),
+                    (CommittableView v) -> {
+                      var system = v.getRootObjects(System.class).iterator().next();
+
+                      var component = ModelFactory.eINSTANCE.createComponent();
+                      component.setName("onlyComponent");
+                      system.getComponents().add(component);
+
+                      var link = ModelFactory.eINSTANCE.createLink();
+                      system.getLinks().add(link);
+                      link.getComponents().add(component);
+                    }));
+
+    Assertions.assertTrue(
+        exception.getMessage().contains("LinkHasAtLeastTwoEntities"),
+        () -> "Expected the failure message to name the violated constraint. Got: " + exception.getMessage());
+  }
+
+  /**
    * Demonstrates manual constraint evaluation using VitruviusOCL.
    *
    * <p>After inserting a Component and committing the change, the Reactions create a corresponding
@@ -309,14 +358,23 @@ public class VSUMExampleTest {
   }
 
   private InternalVirtualModel createDefaultVirtualModel(Path projectPath) throws IOException {
+    var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
     InternalVirtualModel model =
         new VirtualModelBuilder()
             .withStorageFolder(projectPath)
             .withUserInteractorForResultProvider(
                 new TestUserInteraction.ResultProvider(new TestUserInteraction()))
-            .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+            .withChangePropagationSpecifications(hookedSpecification)
             .buildAndInitialize();
     model.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
+
+    VitruvOCL.registerVSUM(model);
+    var registry = ProjectReactionConstraints.buildRegistry();
+    var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
+    var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+    model.addChangePropagationListener(
+        ReactionConstraintCheckingListener.failFast(hookedSpecification.getCollector(), coordinator));
+
     return model;
   }
 
