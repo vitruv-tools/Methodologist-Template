@@ -127,7 +127,7 @@ Reaction makes every registration referencing it fail to compile — there is no
 to silently go stale. A Reaction with no matching constraint simply has no registration; that is
 expected, not an error (see the `SystemInsertedAsRootReaction` comment in the file).
 
-#### Evaluating only the relevant constraints
+#### Evaluating only the relevant constraints (manual)
 
 ```java
 var registry = ProjectReactionConstraints.buildRegistry();
@@ -138,13 +138,78 @@ Set<Class<? extends Reaction>> firedReactions = Set.of(ComponentInsertedIntoSyst
 List<ViolatedConstraint> violations = coordinator.evaluateFor(firedReactions);
 ```
 
-**Known gap:** there is currently no automatic way to obtain `firedReactions` from a running
-transaction — `ChangePropagationListener.finishedChangePropagation(...)` reports the resulting
-`PropagatedChange`s, not which Reaction classes produced them. Until that is resolved, callers
-must supply the fired-Reaction set themselves (see `ConstraintEvaluationIntegrationTest` in the
-`consistency` module for a worked example). Acting on a non-empty violation list — e.g. rolling
-back the transaction — is likewise out of scope until a `TransactionManager` with rollback
-capability exists.
+This requires you to already know which Reactions fired. See
+`ConstraintEvaluationIntegrationTest` in the `consistency` module for a worked example. Acting on
+a non-empty violation list — e.g. rolling back the transaction — is out of scope until a
+`TransactionManager` with rollback capability exists.
+
+#### Automatic checking, hooked into every commit
+
+Figuring out `firedReactions` yourself is only necessary if you evaluate manually. For automatic,
+zero-argument checking after every commit, three more classes in the same package wire the
+registry directly into Reaction execution:
+
+- **`FiredReactionsCollector`** — accumulates the Reaction classes that actually fired during the
+  current transaction.
+- **`HookedReaction`** — wraps one generated Reaction so it reports into a
+  `FiredReactionsCollector` whenever it actually matches and fires (not merely whenever it is
+  invoked — the Reactions runtime calls `execute(...)` on *every* registered Reaction for *every*
+  incoming change regardless of relevance; only some of those calls actually do anything). Since
+  the match check, `isCurrentChangeMatchingTrigger(EChange)`, is generated per Reaction class and
+  not exposed through any shared interface, it is resolved reflectively once per wrapped instance.
+- **`HookedModel2Model2ChangePropagationSpecification`** — a drop-in replacement for the generated
+  `Model2Model2ChangePropagationSpecification` that registers every Reaction wrapped in a
+  `HookedReaction` instead of bare. Use it in place of `Model2Model2ChangePropagationSpecification`
+  when building the VSUM.
+- **`ReactionConstraintCheckingListener`** — a `ChangePropagationListener` that, once change
+  propagation for a transaction finishes, drains the collector and calls
+  `ConstraintEvaluationCoordinator.evaluateFor(...)` automatically.
+
+```java
+var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
+
+InternalVirtualModel vsum = new VirtualModelBuilder()
+    .withStorageFolder(storageFolder)
+    .withUserInteractorForResultProvider(...)
+    .withChangePropagationSpecifications(hookedSpecification) // instead of the generated one
+    .buildAndInitialize();
+
+var registry = ProjectReactionConstraints.buildRegistry();
+var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE);
+var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+
+vsum.addChangePropagationListener(
+    new ReactionConstraintCheckingListener(
+        hookedSpecification.getCollector(),
+        coordinator,
+        violations -> violations.forEach(v -> System.err.println("[VIOLATION] " + v))));
+```
+
+From this point on, every `commitChanges()` automatically checks exactly the constraints relevant
+to whatever Reactions fired in that transaction — no further calls needed. See
+`AutomaticConstraintCheckingIntegrationTest` in the `consistency` module for a full working
+example that deliberately creates an invalid `model::Link` (only one Component instead of the
+required two) and asserts the resulting `LinkHasAtLeastTwoEntities` violation is captured
+automatically, with no manual `evaluateFor` call anywhere in the test.
+
+**Why a `HookedReaction` wrapper instead of a listener alone:**
+`ChangePropagationListener.finishedChangePropagation(Iterable<PropagatedChange>)` tells you a
+transaction finished, but each `PropagatedChange` only carries the resulting
+`VitruviusChange`s — not which Reaction class produced them. The only place that information is
+observable is at the Reaction itself, which is why the wrapping happens at registration
+(`setup()`), not at the listener.
+
+**Implementation note if you extend this:** `AbstractReactionsChangePropagationSpecification`
+(the reactions-runtime base class) clears its Reaction list and re-invokes `setup()` before
+*every* transactional-change round via `setUserInteractor(...)` — not just once at construction —
+presumably so generated Reactions, which hold per-change instance fields, never carry stale state
+between rounds. `HookedModel2Model2ChangePropagationSpecification.setup()` therefore only creates
+its `FiredReactionsCollector` the first time (guarded by a null check) and reuses it on every
+subsequent re-invocation; creating a fresh one each time would silently disconnect it from
+whatever `ReactionConstraintCheckingListener` was built with the original reference.
+
+Acting on a non-empty violation list (e.g. rolling back the transaction) is still out of scope
+until a `TransactionManager` with rollback capability exists — the listener above only reports.
 
 #### `pre`/`post` example: `prepost-example.ocl`
 
