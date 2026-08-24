@@ -5,18 +5,46 @@ This project is a template for the methodologists who are creating a V-SUM.
 ## Getting Started
 
 The Methodologist Template can be executed using the Maven build system. The project comes with a maven wrapper, so you can run it without installing Maven.
-To build the project you can run the following command:
+On a fresh clone, running **one command** from the repository root is enough to get everything
+working:
 
 ```bash
-./mvnw clean verify
+./mvnw clean install
 ```
 
-Verify that all tests are passing. The tests are located in the `vsum` folder.
+This is the only command you need to run, and the order of the four modules (`viewtype`,
+`model`, `consistency`, `vsum`) does not matter — Maven's reactor works it out from their
+dependencies automatically, regardless of the order they're listed in in the root `pom.xml`. In
+one pass it will:
+
+- generate the EMF model classes from `model.ecore`/`model2.ecore` (in `model`),
+- generate the Reaction classes from `templateReactions.reactions` (in `consistency`) — these are
+  the actual `SystemInsertedAsRootReaction`, `ComponentInsertedIntoSystemReaction`, etc. classes
+  the Reaction-Constraint Registry (see below) registers against,
+- compile and run every test in `consistency` and `vsum`, and
+- **install** all four modules into your local Maven repository (`~/.m2`).
+
+That last point matters: use `install`, not `verify` (or `package`). Later, one-off commands like
+the `VSUMExample.main()` invocation below (for the VS Code extension) run as a **separate**,
+single-module Maven invocation (`-pl vsum`) — and a single-module invocation resolves its sibling
+modules (`model`, `consistency`) from your local repository, not from whatever another Maven
+invocation built earlier. Without `install` having put them there first, that command fails with
+`Could not resolve dependencies ... tools.vitruv.methodologisttemplate.model:jar:0.1.0-SNAPSHOT`
+(reproduced while writing this). `./mvnw clean install` from the root is the one command that
+avoids that.
+
+You'll also need `JAVA_HOME` pointing at a **JDK 21 or newer** — `vitruvocl-language` ships Java
+21 bytecode, so JDK 17 fails outright, and some IDEs default to an older `java` on `PATH` even
+when a newer JDK is installed.
+
 Now you can start to modify the project to your needs. Or jump to the [Tutorial](#tutorial) section to get a quick start. First we will explain what tests are run and what they are testing.
 
 ### Tests
 
-The tests test the vsum and its reactions.
+Tests live in two places: `vsum/src/test` (VSUM setup, Reactions, and VitruviusOCL usage) and
+`consistency/src/test` (the Reaction-Constraint Registry — `ConstraintRef`,
+`ReactionConstraintRegistry`, `ConstraintEvaluationCoordinator`, the automatic hook, etc.,
+documented further down).
 The goal is to ensure that the reactions are keeping the model consistent.
 Consider the following example taken from the `VSUMExampleTest.java` file:
 
