@@ -5,6 +5,7 @@ import mir.reactions.model2Model2.ComponentInsertedIntoLinkReaction;
 import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
 import mir.reactions.model2Model2.ComponentRenamedReaction;
 import mir.reactions.model2Model2.LinkInsertedIntoSystemReaction;
+import mir.reactions.model2Model2.ProtocolInsertedIntoSystemReaction;
 
 /**
  * Hand-maintained association between this project's Reactions (declared in {@code
@@ -17,10 +18,10 @@ import mir.reactions.model2Model2.LinkInsertedIntoSystemReaction;
  * removed, the compiler will flag every registration referencing it, because the key is the
  * generated class, not a string.
  *
- * <p>{@code SystemInsertedAsRootReaction}, {@code ProtocolInsertedIntoSystemReaction}, and {@code
- * ProtocolInsertedIntoLinkReaction} have no entries below because neither {@code .ocl} file
- * currently declares a constraint over {@code model::System}, {@code model2::Root}, or {@code
- * model2::CommunicationStandard}.
+ * <p>{@code SystemInsertedAsRootReaction} and {@code ProtocolInsertedIntoLinkReaction} have no
+ * entries below because neither {@code .ocl} file currently declares a constraint over {@code
+ * model::System}, {@code model2::Root}, or the {@code model::Link[protocol]}/{@code
+ * model2::Link[standard]} relationship.
  */
 public final class ProjectReactionConstraints {
 
@@ -61,6 +62,11 @@ public final class ProjectReactionConstraints {
         new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntities"),
         new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync"),
         new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntitiesAfterSync"));
+
+    registry.register(
+        ProtocolInsertedIntoSystemReaction.class,
+        new ConstraintRef("model::Protocol", "ProtocolHasNameBeforeSync"),
+        new ConstraintRef("model2::CommunicationStandard", "CommunicationStandardNameMatchesProtocolAfterSync"));
 
     return registry;
   }

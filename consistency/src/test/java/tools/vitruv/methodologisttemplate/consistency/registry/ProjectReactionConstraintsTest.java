@@ -7,6 +7,7 @@ import java.util.List;
 import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
 import mir.reactions.model2Model2.ComponentRenamedReaction;
 import mir.reactions.model2Model2.LinkInsertedIntoSystemReaction;
+import mir.reactions.model2Model2.ProtocolInsertedIntoSystemReaction;
 import mir.reactions.model2Model2.SystemInsertedAsRootReaction;
 import org.junit.jupiter.api.Test;
 
@@ -68,6 +69,19 @@ class ProjectReactionConstraintsTest {
         constraints.contains(new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync")));
     assertTrue(
         constraints.contains(new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntitiesAfterSync")));
+  }
+
+  @Test
+  void protocolInsertedIntoSystemIncludesPrePostExampleConstraints() {
+    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
+
+    var constraints = registry.getConstraintsFor(ProtocolInsertedIntoSystemReaction.class);
+
+    assertTrue(constraints.contains(new ConstraintRef("model::Protocol", "ProtocolHasNameBeforeSync")));
+    assertTrue(
+        constraints.contains(
+            new ConstraintRef(
+                "model2::CommunicationStandard", "CommunicationStandardNameMatchesProtocolAfterSync")));
   }
 
   @Test

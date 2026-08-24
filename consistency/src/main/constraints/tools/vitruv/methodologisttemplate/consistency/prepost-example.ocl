@@ -59,3 +59,17 @@ context model2::Link post LinkHasAtLeastTwoEntitiesAfterSync:
     @severity MAJOR
     @message "{self} must reference at least two entities after sync"
     self.entities.size() >= 2
+
+-- Precondition for ProtocolInsertedIntoSystemReaction:
+-- a Protocol must have a non-empty name before it is synced into model2.
+context model::Protocol pre ProtocolHasNameBeforeSync:
+    @severity MAJOR
+    @message "Protocol must have a non-empty name before it is synced to model2"
+    self.name != ""
+
+-- Postcondition for ProtocolInsertedIntoSystemReaction:
+-- after the reaction fires, the corresponding CommunicationStandard's name must match the Protocol's.
+context model2::CommunicationStandard post CommunicationStandardNameMatchesProtocolAfterSync:
+    @severity MAJOR
+    @message "CommunicationStandard {self.name} must match the name of its corresponding Protocol after sync"
+    model::Protocol.allInstances().select(~).forAll(p | p.name == self.name)
