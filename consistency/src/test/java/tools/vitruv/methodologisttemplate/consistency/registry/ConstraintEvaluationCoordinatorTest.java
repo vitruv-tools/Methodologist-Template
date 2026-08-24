@@ -1,6 +1,7 @@
 package tools.vitruv.methodologisttemplate.consistency.registry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -43,13 +44,50 @@ class ConstraintEvaluationCoordinatorTest {
     when(ocl.evaluateAll())
         .thenReturn(
             List.of(
-                new ViolatedConstraint("model::System", "SystemInsertedAsRoot", "Root missing"),
-                new ViolatedConstraint("model::Component", "UnrelatedConstraint", "Irrelevant here")));
+                new EvaluatedConstraint("model::System", "SystemInsertedAsRoot", false, "Root missing"),
+                new EvaluatedConstraint("model::Component", "UnrelatedConstraint", false, "Irrelevant here")));
 
     var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
     var relevantViolations = coordinator.evaluateFor(Set.of(FakeReaction.class));
 
     assertEquals(1, relevantViolations.size());
     assertEquals(relevantRef, relevantViolations.get(0).ref());
+  }
+
+  @Test
+  void excludesSatisfiedConstraintsFromTheResult() {
+    var registry = new ReactionConstraintRegistry();
+    var ref = new ConstraintRef("model::System", "SystemInsertedAsRoot");
+    registry.register(FakeReaction.class, ref);
+
+    var ocl = mock(VitruvOCLGateway.class);
+    when(ocl.evaluateAll())
+        .thenReturn(List.of(new EvaluatedConstraint("model::System", "SystemInsertedAsRoot", true, "OK")));
+
+    var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
+    var relevantViolations = coordinator.evaluateFor(Set.of(FakeReaction.class));
+
+    assertTrue(relevantViolations.isEmpty());
+  }
+
+  @Test
+  void throwsWhenRegisteredConstraintDoesNotExistInAnyEvaluatedFile() {
+    var registry = new ReactionConstraintRegistry();
+    var typoedRef = new ConstraintRef("model::System", "SystemInsertedAsRotoTypo");
+    registry.register(FakeReaction.class, typoedRef);
+
+    var ocl = mock(VitruvOCLGateway.class);
+    when(ocl.evaluateAll())
+        .thenReturn(
+            List.of(new EvaluatedConstraint("model::System", "SomeOtherConstraint", true, "OK")));
+
+    var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
+
+    var exception =
+        assertThrows(
+            UnknownConstraintException.class,
+            () -> coordinator.evaluateFor(Set.of(FakeReaction.class)));
+
+    assertTrue(exception.getMessage().contains("SystemInsertedAsRotoTypo"));
   }
 }

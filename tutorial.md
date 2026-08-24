@@ -357,6 +357,12 @@ the VSUM, because `LinkInsertedIntoSystemReaction` did not fire in this set. Tha
 entire point of the registry: each Reaction is checked against its own responsibilities, not
 against the whole constraint file.
 
+If you mistype the constraint name while registering it — say
+`new ConstraintRef("model2::Entity", "EntityNameIsNotUnamed")` (missing an "n") — `evaluateFor(...)`
+does not silently skip it. It throws `UnknownConstraintException`, naming the ref it could not
+find and listing every constraint it *did* find in the evaluated file(s), so the typo is caught
+immediately instead of the constraint quietly never being checked.
+
 See `ConstraintEvaluationIntegrationTest.java` in the `consistency` module for a full, working
 end-to-end example against a real VSUM.
 

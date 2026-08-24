@@ -1,5 +1,6 @@
 package tools.vitruv.methodologisttemplate.consistency.registry;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,13 +21,31 @@ public final class ConstraintEvaluationCoordinator {
     this.ocl = ocl;
   }
 
+  /**
+   * @throws UnknownConstraintException if the registry references a {@link ConstraintRef} that
+   *     is not declared in any file {@link #ocl} evaluates -- fails loudly instead of silently
+   *     never checking it, which is what would otherwise happen with e.g. a typo'd constraint
+   *     name in {@code ProjectReactionConstraints.buildRegistry()}.
+   */
   public List<ViolatedConstraint> evaluateFor(Set<Class<? extends Reaction>> firedReactions) {
     Set<ConstraintRef> relevant = registry.getConstraintsForAll(firedReactions);
     if (relevant.isEmpty()) {
       return List.of();
     }
-    return ocl.evaluateAll().stream()
-        .filter(v -> relevant.contains(v.ref()))
+
+    List<EvaluatedConstraint> all = ocl.evaluateAll();
+    Set<ConstraintRef> declared = all.stream().map(EvaluatedConstraint::ref).collect(Collectors.toSet());
+    Set<ConstraintRef> unknown =
+        relevant.stream()
+            .filter(ref -> !declared.contains(ref))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    if (!unknown.isEmpty()) {
+      throw new UnknownConstraintException(unknown, declared);
+    }
+
+    return all.stream()
+        .filter(c -> relevant.contains(c.ref()) && !c.satisfied())
+        .map(c -> new ViolatedConstraint(c.contextType(), c.constraintName(), c.message()))
         .collect(Collectors.toList());
   }
 }

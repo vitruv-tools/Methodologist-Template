@@ -45,6 +45,8 @@ import tools.vitruv.methodologisttemplate.model.model.System;
  */
 class PrePostConstraintWorkflowTest {
 
+  private static final Path CONSTRAINT_FILE =
+      Path.of("src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
   private static final Path PREPOST_CONSTRAINT_FILE =
       Path.of("src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl");
 
@@ -98,7 +100,7 @@ class PrePostConstraintWorkflowTest {
 
     VitruvOCL.registerVSUM(vsum);
     var registry = ProjectReactionConstraints.buildRegistry();
-    var gateway = new VitruvOCLGatewayImpl(PREPOST_CONSTRAINT_FILE);
+    var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
     var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
 
     Set<Class<? extends Reaction>> firedReactions =
@@ -119,7 +121,7 @@ class PrePostConstraintWorkflowTest {
 
     VitruvOCL.registerVSUM(vsum);
     var registry = ProjectReactionConstraints.buildRegistry();
-    var gateway = new VitruvOCLGatewayImpl(PREPOST_CONSTRAINT_FILE);
+    var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
     var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
 
     Set<Class<? extends Reaction>> firedReactions =

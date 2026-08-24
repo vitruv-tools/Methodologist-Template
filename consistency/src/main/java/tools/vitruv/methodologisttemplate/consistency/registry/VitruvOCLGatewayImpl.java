@@ -5,12 +5,16 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import tools.vitruv.dsls.vitruvocl.pipeline.ConstraintResult;
 import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 
 /**
- * Wraps {@link VitruvOCL#evaluateConstraints(Path)} for one constraint file.
+ * Wraps {@link VitruvOCL#evaluateConstraints(Path)} for one or more constraint files, combining
+ * their results. Multiple files matter here because {@code ProjectReactionConstraints} maps a
+ * single Reaction to constraints spread across more than one {@code .ocl} file (e.g. both
+ * {@code constraints.ocl} and {@code prepost-example.ocl}) -- evaluating only one of them would
+ * make every {@link ConstraintRef} declared solely in the other look "unknown" to {@link
+ * ConstraintEvaluationCoordinator}'s validation, even though it is perfectly valid.
  *
  * <p>{@link ConstraintResult#getConstraint()} does not expose the context type and constraint
  * name as separate fields — it returns the raw declaration text, e.g.
@@ -28,33 +32,34 @@ import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
  * parse and type-check like {@code inv} but are not yet evaluated for truthiness by the runtime
  * (its {@code EvaluationVisitor} has no {@code visitPreCS}/{@code visitPostCS} override), so they
  * are still matched here for forward-compatibility and so a compile-time failure on a pre/post
- * declaration (which does reach {@link ConstraintResult#getConstraint()} via {@code
- * getFailedConstraints()}) parses correctly instead of throwing.
+ * declaration (which does reach {@link ConstraintResult#getConstraint()}) parses correctly
+ * instead of throwing.
  */
 public final class VitruvOCLGatewayImpl implements VitruvOCLGateway {
 
   private static final Pattern CONSTRAINT_HEADER =
       Pattern.compile("context\\s+(\\S+)\\s+(?:inv|pre|post)\\s+(\\w+)\\s*:");
 
-  private final Path constraintFile;
+  private final List<Path> constraintFiles;
 
-  public VitruvOCLGatewayImpl(Path constraintFile) {
-    this.constraintFile = constraintFile;
+  public VitruvOCLGatewayImpl(Path... constraintFiles) {
+    this.constraintFiles = List.of(constraintFiles);
   }
 
   @Override
-  public List<ViolatedConstraint> evaluateAll() {
-    var result = VitruvOCL.evaluateConstraints(constraintFile);
-    return Stream.concat(
-            result.getViolatedConstraints().stream(), result.getFailedConstraints().stream())
-        .map(this::toViolatedConstraint)
+  public List<EvaluatedConstraint> evaluateAll() {
+    return constraintFiles.stream()
+        .map(VitruvOCL::evaluateConstraints)
+        .flatMap(result -> result.getResults().stream())
+        .map(this::toEvaluatedConstraint)
         .collect(Collectors.toList());
   }
 
-  private ViolatedConstraint toViolatedConstraint(ConstraintResult constraintResult) {
+  private EvaluatedConstraint toEvaluatedConstraint(ConstraintResult constraintResult) {
     ConstraintRef ref = parseRef(constraintResult.getConstraint());
-    return new ViolatedConstraint(
-        ref.contextType(), ref.constraintName(), constraintResult.toString());
+    boolean satisfied = constraintResult.isSuccess() && constraintResult.isSatisfied();
+    return new EvaluatedConstraint(
+        ref.contextType(), ref.constraintName(), satisfied, constraintResult.toString());
   }
 
   private static ConstraintRef parseRef(String rawConstraintDeclaration) {

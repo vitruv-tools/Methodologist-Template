@@ -107,7 +107,10 @@ The package contains:
 - **`ConstraintEvaluationCoordinator`** + **`VitruvOCLGateway`/`VitruvOCLGatewayImpl`** — given the
   set of Reaction classes that fired in a transaction, looks up the relevant `ConstraintRef`s and
   filters `VitruvOCL.evaluateConstraints(...)`'s result down to just those, returning a
-  `List<ViolatedConstraint>` (empty if nothing relevant was violated).
+  `List<ViolatedConstraint>` (empty if nothing relevant was violated). `VitruvOCLGatewayImpl`
+  takes one or more `.ocl` files and combines their results, since a single Reaction's constraints
+  can be spread across more than one file (see `ProjectReactionConstraints`, which references both
+  `constraints.ocl` and `prepost-example.ocl`).
 
 #### Adding a mapping entry
 
@@ -127,11 +130,19 @@ Reaction makes every registration referencing it fail to compile — there is no
 to silently go stale. A Reaction with no matching constraint simply has no registration; that is
 expected, not an error (see the `SystemInsertedAsRootReaction` comment in the file).
 
+The `(contextType, constraintName)` pair itself, however, is just two strings — nothing stops a
+typo like `"ComponentHasCorrespondingEntty"` from compiling. `ConstraintEvaluationCoordinator`
+guards against this at evaluation time: it checks every relevant `ConstraintRef` against the full
+set of constraints actually declared in the evaluated `.ocl` file(s) (regardless of pass/fail) and
+throws `UnknownConstraintException` — naming the unrecognized ref(s) and listing what *is*
+declared — instead of silently never checking a misspelled or removed constraint. See
+`ConstraintEvaluationCoordinatorTest.throwsWhenRegisteredConstraintDoesNotExistInAnyEvaluatedFile`.
+
 #### Evaluating only the relevant constraints (manual)
 
 ```java
 var registry = ProjectReactionConstraints.buildRegistry();
-var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE);
+var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
 var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
 
 Set<Class<? extends Reaction>> firedReactions = Set.of(ComponentInsertedIntoSystemReaction.class);
@@ -175,7 +186,7 @@ InternalVirtualModel vsum = new VirtualModelBuilder()
     .buildAndInitialize();
 
 var registry = ProjectReactionConstraints.buildRegistry();
-var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE);
+var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
 var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
 
 vsum.addChangePropagationListener(
