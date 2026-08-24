@@ -1,5 +1,6 @@
 package tools.vitruv.methodologisttemplate.consistency.registry;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -82,6 +83,42 @@ class AutomaticConstraintCheckingIntegrationTest {
             "Expected LinkHasAtLeastTwoEntities to be reported automatically after committing a "
                 + "Link with only one Component. Captured violations: "
                 + capturedViolations);
+  }
+
+  @Test
+  void failFastMakesTheCommitThatViolatesAConstraintThrowWithAMeaningfulMessage(
+      @TempDir Path tempDir) throws IOException {
+    var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
+
+    InternalVirtualModel vsum =
+        new VirtualModelBuilder()
+            .withStorageFolder(tempDir)
+            .withUserInteractorForResultProvider(
+                new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+            .withChangePropagationSpecifications(hookedSpecification)
+            .buildAndInitialize();
+    vsum.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
+
+    VitruvOCL.registerVSUM(vsum);
+    var registry = ProjectReactionConstraints.buildRegistry();
+    var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
+    var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+
+    vsum.addChangePropagationListener(
+        ReactionConstraintCheckingListener.failFast(hookedSpecification.getCollector(), coordinator));
+
+    addSystem(vsum, tempDir);
+
+    // Unlike committingAChangeAutomaticallyChecksTheReactionsConstraints (which merely captures
+    // violations into a list), this asserts the offending commitChanges() call itself throws --
+    // proving a test using failFast cannot stay green when a Reaction violates a constraint.
+    var exception =
+        assertThrows(
+            ConstraintViolationsDetectedException.class, () -> addLinkWithOnlyOneComponent(vsum));
+
+    assertTrue(
+        exception.getMessage().contains("LinkHasAtLeastTwoEntities"),
+        () -> "Expected the failure message to name the violated constraint. Got: " + exception.getMessage());
   }
 
   private void addSystem(InternalVirtualModel vsum, Path projectPath) {

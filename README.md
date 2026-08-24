@@ -218,18 +218,26 @@ var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE)
 var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
 
 vsum.addChangePropagationListener(
-    new ReactionConstraintCheckingListener(
-        hookedSpecification.getCollector(),
-        coordinator,
-        violations -> violations.forEach(v -> System.err.println("[VIOLATION] " + v))));
+    ReactionConstraintCheckingListener.failFast(hookedSpecification.getCollector(), coordinator));
 ```
 
 From this point on, every `commitChanges()` automatically checks exactly the constraints relevant
 to whatever Reactions fired in that transaction — no further calls needed. See
-`AutomaticConstraintCheckingIntegrationTest` in the `consistency` module for a full working
-example that deliberately creates an invalid `model::Link` (only one Component instead of the
-required two) and asserts the resulting `LinkHasAtLeastTwoEntities` violation is captured
-automatically, with no manual `evaluateFor` call anywhere in the test.
+`AutomaticConstraintCheckingIntegrationTest` in the `consistency` module for two full working
+examples: one that captures violations into a list and asserts on it, and one using `failFast`
+that asserts the offending `commitChanges()` call itself throws.
+
+**`ReactionConstraintCheckingListener.failFast(...)` vs. the plain constructor:** the plain
+constructor just hands your `Consumer<List<ViolatedConstraint>>` the violations and moves on —
+useful for logging, but a callback that only logs leaves a test **green** even though a Reaction
+just violated a registered constraint. `failFast(...)` instead throws
+`ConstraintViolationsDetectedException` — an `AssertionError` subtype — naming every violated
+constraint. Vitruvius does not catch or wrap exceptions thrown from a
+`ChangePropagationListener`, so it propagates straight out of the `commitChanges()` call that
+triggered it, turning any test that wires in `failFast` red exactly at that commit, with a message
+listing what was violated. Use the plain constructor only where you deliberately want to keep
+going after a violation (e.g. collecting several across a longer scenario) — for anything meant to
+guarantee "this must never happen", use `failFast`.
 
 **Why a `HookedReaction` wrapper instead of a listener alone:**
 `ChangePropagationListener.finishedChangePropagation(Iterable<PropagatedChange>)` tells you a

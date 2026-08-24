@@ -30,7 +30,7 @@
 context model::Component pre ComponentHasNameBeforeSync:
     @severity CRITICAL
     @message "Component must have a non-empty name before it is synced to model2"
-    self.name <> ""
+    self.name != ""
 
 -- Postcondition for ComponentInsertedIntoSystemReaction:
 -- after the reaction fires, every Component must have exactly one corresponding Entity.
