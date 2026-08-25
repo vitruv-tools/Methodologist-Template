@@ -9,14 +9,14 @@ import mir.reactions.model2Model2.ProtocolInsertedIntoSystemReaction;
 
 /**
  * Hand-maintained association between this project's Reactions (declared in {@code
- * templateReactions.reactions}) and the OCL# constraints — both the invariants in {@code
+ * templateReactions.reactions}) and the OCL constraints, both the invariants in {@code
  * constraints.ocl} and the pre-/postconditions in {@code prepost-example.ocl} — that must hold
  * around each Reaction's execution.
  *
- * <p>Extend this alongside adding a Reaction and its constraint to the relevant {@code .ocl}
- * file — this file is the single place that ties the two together. If a Reaction is renamed or
- * removed, the compiler will flag every registration referencing it, because the key is the
- * generated class, not a string.
+ * <p>Extend this alongside adding a Reaction and its constraint to the relevant {@code .ocl} file —
+ * this file is the single place that ties the two together. If a Reaction is renamed or removed,
+ * the compiler will flag every registration referencing it, because the key is the generated class,
+ * not a string.
  *
  * <p>{@code SystemInsertedAsRootReaction} and {@code ProtocolInsertedIntoLinkReaction} have no
  * entries below because neither {@code .ocl} file currently declares a constraint over {@code
@@ -66,7 +66,8 @@ public final class ProjectReactionConstraints {
     registry.register(
         ProtocolInsertedIntoSystemReaction.class,
         new ConstraintRef("model::Protocol", "ProtocolHasNameBeforeSync"),
-        new ConstraintRef("model2::CommunicationStandard", "CommunicationStandardNameMatchesProtocolAfterSync"));
+        new ConstraintRef(
+            "model2::CommunicationStandard", "CommunicationStandardNameMatchesProtocolAfterSync"));
 
     return registry;
   }

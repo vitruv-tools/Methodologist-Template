@@ -63,11 +63,15 @@ public class VSUMExample {
   private static final Path STORAGE_FOLDER = PROJECT_ROOT.resolve("vsumexample").toAbsolutePath();
 
   private static Path resolveProjectRoot() {
+    // Deliberately checks for 'consistency' and 'model' -- committed module directories that
+    // always exist -- rather than 'vsumexample', which is generated output this very class
+    // creates on first run (gitignored, absent on a fresh clone), and so cannot double as a marker
+    // for finding the root.
     Path candidate = Path.of("").toAbsolutePath();
     Path original = candidate;
     for (int depth = 0; depth < 3; depth++) {
       if (Files.isDirectory(candidate.resolve("consistency"))
-          && Files.isDirectory(candidate.resolve("vsumexample"))) {
+          && Files.isDirectory(candidate.resolve("model"))) {
         return candidate;
       }
       Path parent = candidate.getParent();
@@ -77,7 +81,7 @@ public class VSUMExample {
       candidate = parent;
     }
     throw new IllegalStateException(
-        "Could not locate the project root (expected 'consistency' and 'vsumexample' as sibling "
+        "Could not locate the project root (expected 'consistency' and 'model' as sibling "
             + "directories) starting from working directory: "
             + original);
   }
