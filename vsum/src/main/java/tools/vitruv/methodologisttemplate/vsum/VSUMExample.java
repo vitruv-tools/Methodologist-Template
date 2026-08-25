@@ -4,10 +4,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Consumer;
+import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
-import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
 import tools.vitruv.change.testutils.TestUserInteraction;
 import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 import tools.vitruv.framework.views.CommittableView;
@@ -117,7 +117,9 @@ public class VSUMExample {
               ModelFactory.eINSTANCE.createSystem(),
               URI.createFileURI(STORAGE_FOLDER.resolve("example.model").toString()));
         });
-    java.lang.System.out.println("System added. SystemInsertedAsRootReaction fired; nothing was registered to check for it.");
+    java.lang.System.out.println(
+        "System added. SystemInsertedAsRootReaction fired; nothing was registered to check for"
+            + " it.");
 
     addComponent(vsum);
   }
@@ -129,10 +131,11 @@ public class VSUMExample {
    *
    * <p>Reaching the {@code println} below at all already proves every one of those constraints
    * held: if any had been violated, {@code failFast} would have thrown {@code
-   * ConstraintViolationsDetectedException} out of {@code commitChanges()} a few lines above, and
-   * we would never get here. Rather than leave that as an inference from the absence of an
-   * exception, this explicitly lists which {@link tools.vitruv.methodologisttemplate.consistency.registry.ConstraintRef}s
-   * were registered for the Reaction that just fired -- i.e. exactly what got checked and passed.
+   * ConstraintViolationsDetectedException} out of {@code commitChanges()} a few lines above, and we
+   * would never get here. Rather than leave that as an inference from the absence of an exception,
+   * this explicitly lists which {@link
+   * tools.vitruv.methodologisttemplate.consistency.registry.ConstraintRef}s were registered for the
+   * Reaction that just fired -- i.e. exactly what got checked and passed.
    */
   private static void addComponent(VirtualModel vsum) {
     var selector = vsum.createSelector(ViewTypeFactory.createIdentityMappingViewType("default"));
@@ -146,7 +149,8 @@ public class VSUMExample {
     view.commitChanges();
 
     var checkedConstraints =
-        ProjectReactionConstraints.buildRegistry().getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
+        ProjectReactionConstraints.buildRegistry()
+            .getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
     java.lang.System.out.println(
         "Component added. ComponentInsertedIntoSystemReaction fired and was automatically checked "
             + "against "
