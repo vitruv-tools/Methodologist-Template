@@ -185,8 +185,14 @@ For automatic, zero-argument checking after every commit, three more classes in 
   propagation for a transaction finishes, drains the collector, reconstructs the transaction from
   the `PropagatedChange`s it observed (original edit plus every consequential change the fired
   Reactions made), and calls the transaction-aware
-  `ConstraintEvaluationCoordinator.evaluateFor(Set, List)` automatically — so `pre`/`post`
+  `ConstraintEvaluationCoordinator.evaluateFor(Set, List)` automatically — so `post` and `inv`
   constraints get evaluated for real here, not skipped.
+- **`PreconditionGuard`** — checked by `HookedReaction` *before* a Reaction's generated `execute`
+  body runs, not after. A violated `pre` constraint throws right there, so the Reaction's own
+  `execute` body never runs at all and the model is never mutated by it — a real guard, not a
+  post-hoc detection. Bound to a `ConstraintEvaluationCoordinator` after the VSUM is built (see
+  below), since the coordinator cannot exist yet while the Hooked specification is still wrapping
+  Reactions during `buildAndInitialize()`.
 
 ```java
 var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
@@ -200,20 +206,30 @@ InternalVirtualModel vsum = new VirtualModelBuilder()
 var registry = ProjectReactionConstraints.buildRegistry();
 var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
 var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+hookedSpecification.getPreconditionGuard().bind(coordinator); // required for pre to actually gate execution
 
 vsum.addChangePropagationListener(
     ReactionConstraintCheckingListener.failFast(hookedSpecification.getCollector(), coordinator));
 ```
 
 From this point on, every `commitChanges()` automatically checks exactly the constraints relevant
-to whatever Reactions fired in that transaction, no further calls needed.
+to whatever Reactions fired in that transaction, no further calls needed. Skip the
+`getPreconditionGuard().bind(...)` line and `pre` constraints simply never block anything — the
+guard silently no-ops when unbound, so this is easy to forget without erroring.
 
 #### `pre`/`post` example: `prepost-example.ocl`
 
 `consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl` demonstrates the same registry workflow using OCL's `pre`/`post` keywords instead of `inv`,
 against the metaclasses already mapped to Reactions above.
 
-**`pre`/`post` are genuinely evaluated — but only if you evaluate against a transaction.**
+**`pre` and `post` are both genuinely evaluated, at two different points in time:** `pre` is
+checked by `PreconditionGuard` immediately before the Reaction it guards executes, against the
+model's current (pre-Reaction) state — no transaction needed for a constraint that only reads
+`self`'s current attributes, though one that also relies on `OCLisNew`/`OCLisModified`/
+`OCLisDeleted` will not see this round's changes yet at that point. `post` is checked afterwards
+by `ReactionConstraintCheckingListener`, against the fully recorded transaction, so `@pre` and
+those three operators resolve correctly there. Evaluating either kind with no transaction context
+at all (`VitruvOCLGateway#evaluateAll()`, no arguments) skips both outright instead.
 
 ### Interactive Evaluation via the VS Code Extension
 

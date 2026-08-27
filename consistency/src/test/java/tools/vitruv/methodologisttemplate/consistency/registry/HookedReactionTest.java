@@ -49,7 +49,7 @@ class HookedReactionTest {
   void recordsFiredAndDelegatesWhenTriggerMatches() {
     var collector = new FiredReactionsCollector();
     var fake = new MatchingFakeReaction();
-    var hooked = new HookedReaction(fake, collector);
+    var hooked = new HookedReaction(fake, collector, new PreconditionGuard());
 
     hooked.execute(null, null);
 
@@ -61,7 +61,7 @@ class HookedReactionTest {
   void delegatesButDoesNotRecordWhenTriggerDoesNotMatch() {
     var collector = new FiredReactionsCollector();
     var fake = new NonMatchingFakeReaction();
-    var hooked = new HookedReaction(fake, collector);
+    var hooked = new HookedReaction(fake, collector, new PreconditionGuard());
 
     hooked.execute(null, null);
 
@@ -74,14 +74,74 @@ class HookedReactionTest {
     var collector = new FiredReactionsCollector();
 
     assertThrows(
-        IllegalStateException.class, () -> new HookedReaction(new NoMatchMethodFakeReaction(), collector));
+        IllegalStateException.class,
+        () -> new HookedReaction(new NoMatchMethodFakeReaction(), collector, new PreconditionGuard()));
   }
 
   @Test
   void wrappedReactionClassReflectsTheDelegate() {
     var collector = new FiredReactionsCollector();
-    var hooked = new HookedReaction(new MatchingFakeReaction(), collector);
+    var hooked = new HookedReaction(new MatchingFakeReaction(), collector, new PreconditionGuard());
 
     assertEquals(MatchingFakeReaction.class, hooked.wrappedReactionClass());
+  }
+
+  @Test
+  void doesNotExecuteWhenTheBoundPreconditionGuardRejectsIt() {
+    var collector = new FiredReactionsCollector();
+    var registry = new ReactionConstraintRegistry();
+    var ref = new ConstraintRef("model::Component", "SomePrecondition");
+    registry.register(MatchingFakeReaction.class, ref);
+
+    var ocl = org.mockito.Mockito.mock(VitruvOCLGateway.class);
+    org.mockito.Mockito.when(ocl.evaluateAll(java.util.List.of()))
+        .thenReturn(
+            java.util.List.of(
+                new EvaluatedConstraint(
+                    "model::Component",
+                    "SomePrecondition",
+                    ConstraintKind.PRECONDITION,
+                    false,
+                    "precondition not met")));
+
+    var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
+    var guard = new PreconditionGuard();
+    guard.bind(coordinator);
+
+    var fake = new MatchingFakeReaction();
+    var hooked = new HookedReaction(fake, collector, guard);
+
+    assertThrows(ConstraintViolationsDetectedException.class, () -> hooked.execute(null, null));
+
+    assertTrue(
+        !fake.executed, "delegate.execute must not run when a registered precondition is violated");
+    assertEquals(Set.of(), collector.drain());
+  }
+
+  @Test
+  void executesNormallyWhenTheBoundPreconditionGuardIsSatisfied() {
+    var collector = new FiredReactionsCollector();
+    var registry = new ReactionConstraintRegistry();
+    var ref = new ConstraintRef("model::Component", "SomePrecondition");
+    registry.register(MatchingFakeReaction.class, ref);
+
+    var ocl = org.mockito.Mockito.mock(VitruvOCLGateway.class);
+    org.mockito.Mockito.when(ocl.evaluateAll(java.util.List.of()))
+        .thenReturn(
+            java.util.List.of(
+                new EvaluatedConstraint(
+                    "model::Component", "SomePrecondition", ConstraintKind.PRECONDITION, true, "OK")));
+
+    var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
+    var guard = new PreconditionGuard();
+    guard.bind(coordinator);
+
+    var fake = new MatchingFakeReaction();
+    var hooked = new HookedReaction(fake, collector, guard);
+
+    hooked.execute(null, null);
+
+    assertTrue(fake.executed, "delegate.execute must run when the precondition is satisfied");
+    assertEquals(Set.of(MatchingFakeReaction.class), collector.drain());
   }
 }

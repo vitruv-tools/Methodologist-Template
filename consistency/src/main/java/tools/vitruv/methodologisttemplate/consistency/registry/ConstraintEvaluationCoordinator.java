@@ -62,6 +62,33 @@ public final class ConstraintEvaluationCoordinator {
     return filterViolations(relevant, ocl.evaluateAll(transaction));
   }
 
+  /**
+   * Evaluates only the {@code pre} constraints registered for {@code reactionClass}, against the
+   * model's <em>current</em> state -- called by {@link PreconditionGuard} right before that
+   * Reaction's generated {@code execute} body runs, at which point the current state genuinely
+   * <em>is</em> the pre-state for this Reaction's effect. Passing {@code List.of()} rather than
+   * {@link VitruvOCLGateway#evaluateAll()} matters here: an empty transaction still evaluates
+   * {@code pre}/{@code post} for real (see {@link VitruvOCLGateway#evaluateAll(List)}), whereas no
+   * transaction at all would skip them outright.
+   *
+   * <p>A precondition whose body reads {@code self}'s current attributes directly is evaluated
+   * correctly this way. One that also relies on {@code OCLisNew}/{@code OCLisModified}/{@code
+   * OCLisDeleted} would not be -- those need this round's transaction-so-far reconstructed, which
+   * is not available yet at this point in a single Reaction's execution.
+   *
+   * @throws UnknownConstraintException see {@link #evaluateFor(Set)}
+   */
+  public List<ViolatedConstraint> evaluatePreconditionsFor(
+      Class<? extends Reaction> reactionClass) {
+    Set<ConstraintRef> relevant = registry.getConstraintsForAll(Set.of(reactionClass));
+    if (relevant.isEmpty()) {
+      return List.of();
+    }
+    return filterViolations(relevant, ocl.evaluateAll(List.of())).stream()
+        .filter(v -> v.kind() == ConstraintKind.PRECONDITION)
+        .collect(Collectors.toList());
+  }
+
   private List<ViolatedConstraint> filterViolations(
       Set<ConstraintRef> relevant, List<EvaluatedConstraint> all) {
     Set<ConstraintRef> declared = all.stream().map(EvaluatedConstraint::ref).collect(Collectors.toSet());

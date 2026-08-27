@@ -51,16 +51,29 @@ public final class HookedModel2Model2ChangePropagationSpecification
   // before this subclass's own constructor body would otherwise run -- a plain constructor
   // parameter/field-initializer can't be used here, since it would still be null at that point.
   private FiredReactionsCollector collector;
+  private PreconditionGuard preconditionGuard;
 
   /** Available once construction completes; share it with a {@link ReactionConstraintCheckingListener}. */
   public FiredReactionsCollector getCollector() {
     return collector;
   }
 
+  /**
+   * Available once construction completes; call {@link PreconditionGuard#bind} on it with a
+   * {@link ConstraintEvaluationCoordinator} right after building the VSUM, so precondition
+   * violations actually block the Reaction they're registered against instead of doing nothing.
+   */
+  public PreconditionGuard getPreconditionGuard() {
+    return preconditionGuard;
+  }
+
   @Override
   protected void setup() {
     if (collector == null) {
       collector = new FiredReactionsCollector();
+    }
+    if (preconditionGuard == null) {
+      preconditionGuard = new PreconditionGuard();
     }
 
     org.eclipse.emf.ecore.EPackage.Registry.INSTANCE.putIfAbsent(
@@ -81,7 +94,7 @@ public final class HookedModel2Model2ChangePropagationSpecification
   }
 
   private HookedReaction hook(Reaction reaction) {
-    return new HookedReaction(reaction, collector);
+    return new HookedReaction(reaction, collector, preconditionGuard);
   }
 
   private RoutinesFacade routinesFacade(ReactionExecutionState executionState) {

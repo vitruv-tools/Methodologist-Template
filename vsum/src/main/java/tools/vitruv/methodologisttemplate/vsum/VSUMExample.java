@@ -177,6 +177,7 @@ public class VSUMExample {
     var registry = ProjectReactionConstraints.buildRegistry();
     var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
     var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+    hookedSpecification.getPreconditionGuard().bind(coordinator);
     vsum.addChangePropagationListener(
         ReactionConstraintCheckingListener.failFast(
             hookedSpecification.getCollector(), coordinator));

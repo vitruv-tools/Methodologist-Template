@@ -31,8 +31,17 @@ public final class ConstraintViolationsDetectedException extends AssertionError 
   }
 
   private static String buildMessage(List<ViolatedConstraint> violations) {
+    // PreconditionGuard only ever throws with precondition-kind violations, and only before the
+    // Reaction's own execute body has run -- "that just fired" would be actively wrong there,
+    // since the whole point is that it did not.
+    boolean blockedBeforeExecution =
+        violations.stream().allMatch(v -> v.kind() == ConstraintKind.PRECONDITION);
+    String verb =
+        blockedBeforeExecution
+            ? " violated -- the Reaction was not executed:\n"
+            : " violated by the Reaction(s) that just fired:\n";
     return summarizeByKind(violations)
-        + " violated by the Reaction(s) that just fired:\n"
+        + verb
         + violations.stream().map(ViolatedConstraint::message).collect(Collectors.joining("\n"));
   }
 

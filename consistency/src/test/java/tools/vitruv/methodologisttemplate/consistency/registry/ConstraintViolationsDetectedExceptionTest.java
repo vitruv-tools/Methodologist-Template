@@ -33,7 +33,9 @@ class ConstraintViolationsDetectedExceptionTest {
 
     var exception = new ConstraintViolationsDetectedException(List.of(violation));
 
-    assertTrue(exception.getMessage().startsWith("1 precondition(s) violated by the Reaction(s) that just fired:"));
+    // PreconditionGuard throws this before the Reaction's own execute() ever runs -- "that just
+    // fired" would be wrong here, since the whole point is that it did not.
+    assertTrue(exception.getMessage().startsWith("1 precondition(s) violated -- the Reaction was not executed:"));
   }
 
   @Test

@@ -295,6 +295,59 @@ public class VSUMExampleTest {
   }
 
   /**
+   * Proves the precondition guard genuinely prevents {@code ComponentInsertedIntoSystemReaction}
+   * from executing at all, rather than merely detecting the violation after the fact. Committing
+   * a Component with a blank name violates {@code ComponentHasNameBeforeSync} (a {@code pre}
+   * constraint in {@code prepost-example.ocl}) -- if the guard only detected this post-hoc, the
+   * corresponding Entity the Reaction creates would already exist in model2 by the time the
+   * exception is inspected below; asserting it does not proves the Reaction's own {@code execute}
+   * body never ran.
+   *
+   * <p>Unlike a postcondition/invariant violation thrown from {@link
+   * ReactionConstraintCheckingListener#failFast} (a {@code ChangePropagationListener}, whose
+   * exceptions Vitruvius propagates unwrapped), {@link PreconditionGuard} throws from inside
+   * {@code Reaction.execute()} itself -- Vitruvius's {@code ChangePropagator} wraps whatever
+   * propagates out of there in a plain {@link RuntimeException}, so the {@link
+   * ConstraintViolationsDetectedException} arrives as its {@link Throwable#getCause() cause}, not
+   * as the exception thrown directly.
+   */
+  @Test
+  void componentWithBlankNameNeverTriggersTheReactionAtAll(@TempDir Path tempDir) throws IOException {
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+
+    var wrapper =
+        Assertions.assertThrows(
+            RuntimeException.class,
+            () ->
+                modifyView(
+                    getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(),
+                    (CommittableView v) -> {
+                      var component = ModelFactory.eINSTANCE.createComponent();
+                      component.setName("");
+                      v.getRootObjects(System.class).iterator().next().getComponents().add(component);
+                    }));
+
+    Assertions.assertTrue(
+        wrapper.getCause() instanceof ConstraintViolationsDetectedException,
+        () -> "Expected a ConstraintViolationsDetectedException cause. Got: " + wrapper);
+    String message = wrapper.getCause().getMessage();
+    Assertions.assertTrue(
+        message.contains("ComponentHasNameBeforeSync") && message.contains("was not executed"),
+        () ->
+            "Expected a precondition-guard failure naming ComponentHasNameBeforeSync, blocked "
+                + "before execution. Got: "
+                + message);
+
+    Assertions.assertTrue(
+        assertView(
+            getDefaultView(vsum, List.of(System.class, Root.class)),
+            (View v) -> v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty()),
+        "ComponentInsertedIntoSystemReaction must never have executed -- no Entity should exist "
+            + "in model2");
+  }
+
+  /**
    * Demonstrates manual constraint evaluation using VitruviusOCL.
    *
    * <p>After inserting a Component and committing the change, the Reactions create a corresponding
@@ -372,6 +425,7 @@ public class VSUMExampleTest {
     var registry = ProjectReactionConstraints.buildRegistry();
     var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
     var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
+    hookedSpecification.getPreconditionGuard().bind(coordinator);
     model.addChangePropagationListener(
         ReactionConstraintCheckingListener.failFast(hookedSpecification.getCollector(), coordinator));
 

@@ -29,12 +29,14 @@ final class HookedReaction implements Reaction {
   private final Class<? extends Reaction> delegateClass;
   private final Method matchMethod;
   private final FiredReactionsCollector collector;
+  private final PreconditionGuard preconditionGuard;
 
   @SuppressWarnings("unchecked")
-  HookedReaction(Reaction delegate, FiredReactionsCollector collector) {
+  HookedReaction(Reaction delegate, FiredReactionsCollector collector, PreconditionGuard preconditionGuard) {
     this.delegate = delegate;
     this.delegateClass = (Class<? extends Reaction>) delegate.getClass();
     this.collector = collector;
+    this.preconditionGuard = preconditionGuard;
     this.matchMethod = resolveMatchMethod(delegateClass);
   }
 
@@ -56,6 +58,12 @@ final class HookedReaction implements Reaction {
   @Override
   public void execute(EChange<EObject> change, ReactionExecutionState state) {
     boolean matches = invokeMatch(change);
+    if (matches) {
+      // Checked before delegate.execute() runs, not after: if a registered precondition is
+      // violated, this throws and the Reaction's own execute body never runs at all -- the model
+      // is never mutated by it, rather than being mutated and only then found to be invalid.
+      preconditionGuard.checkBeforeExecuting(delegateClass);
+    }
     delegate.execute(change, state);
     if (matches) {
       collector.recordFired(delegateClass);

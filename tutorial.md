@@ -375,5 +375,9 @@ neither: `HookedModel2Model2ChangePropagationSpecification` +
 the transaction for you after every `commitChanges()` — see "Automatic checking, hooked into every
 commit" in the [README](./README.md#reaction-constraint-registry-scoping-evaluation-to-what-changed),
 and `VSUMExampleTest.createDefaultVirtualModel`/`VSUMExample.java` for where it's actually wired
-up in this project. Automatically reverting a transaction when violations are found is still
-open — that still needs a `TransactionManager` with rollback capability, which does not exist yet.
+up in this project. For a `post`/`inv` violation, undoing the already-applied change still needs
+a `TransactionManager` with rollback capability, which does not exist yet. `pre` violations do not
+have this problem: `PreconditionGuard` (bound via `hookedSpecification.getPreconditionGuard()
+.bind(coordinator)`, also shown in the README) checks a Reaction's registered preconditions
+*before* its `execute` body runs, so a violation prevents the change from ever being applied in
+the first place — nothing to roll back.
