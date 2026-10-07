@@ -64,13 +64,17 @@ reaction ComponentRenamed {
 	call renameEntity(affectedEObject)
 }
 
+// Only propagates the rename when the committing author is "methodologist".
 routine renameEntity(model::Component component) {
 	match {
     val entity = retrieve model2::Entity corresponding to component
 	}
-  // we can omit blocks like the update block if we do not need them
 	update {
-    entity.name = component.name
+    // changeAnnotations gives access to the annotations set on the view before committing
+    val author = changeAnnotations.getAnnotation(tools.vitruv.methodologisttemplate.model.Author)
+    if (author.map[name == "methodologist"].orElse(false)) {
+      entity.name = component.name
+    }
 	}
 }
 
