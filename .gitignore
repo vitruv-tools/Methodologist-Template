@@ -6,6 +6,12 @@ target/
 *.log
 .mvn/wrapper/*.jar
 
+# Generated Reactions/Routines sources (regenerated at build time)
+/src-gen/
+
+# VSUM storage created by running VSUMExample.main() (used by the vitruvocl VS Code extension)
+/vsumexample/
+
 # Eclipse
 META-INF
 build.properties

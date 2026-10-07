@@ -51,7 +51,7 @@ routine createAndInsertEntity(model::System system, model::Component component) 
     val entity = new model2::Entity
   }
 	update {
-entity.name = component.name
+    entity.name = component.name
     mRoot.entities.add(entity)
 		addCorrespondenceBetween(component, entity)
 	}
@@ -70,9 +70,10 @@ routine renameEntity(model::Component component) {
     val entity = retrieve model2::Entity corresponding to component
 	}
 	update {
-	    println(changeAnnotations.getAnnotation(tools.vitruv.methodologisttemplate.model.Author))
-		if (changeAnnotations.getAnnotation(tools.vitruv.methodologisttemplate.model.Author).map[name == "methodologist"].orElse(false)) {
-    	entity.name = component.name
+    // changeAnnotations gives access to the annotations set on the view before committing
+    val author = changeAnnotations.getAnnotation(tools.vitruv.methodologisttemplate.model.Author)
+    if (author.map[name == "methodologist"].orElse(false)) {
+      entity.name = component.name
     }
 	}
 }
