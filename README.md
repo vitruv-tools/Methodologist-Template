@@ -4,8 +4,7 @@ This project is a template for the methodologists who are creating a V-SUM.
 
 ## Getting Started
 
-The Methodologist Template can be executed using the Maven build system. The project comes with a maven wrapper, so you
-can run it without installing Maven.
+The Methodologist Template can be executed using the Maven build system. The project comes with a maven wrapper, so you can run it without installing Maven.
 To build the project you can run the following command:
 
 ```bash
@@ -13,8 +12,7 @@ To build the project you can run the following command:
 ```
 
 Verify that all tests are passing. The tests are located in the `vsum` folder.
-Now you can start to modify the project to your needs. Or jump to the [Tutorial](#tutorial) section to get a quick
-start. First we will explain what tests are run and what they are testing.
+Now you can start to modify the project to your needs. Or jump to the [Tutorial](#tutorial) section to get a quick start. First we will explain what tests are run and what they are testing.
 
 ### Tests
 
@@ -34,22 +32,15 @@ Consider the following example taken from the `VSUMExampleTest.java` file:
   }
 ```
 
-In this testcase a system is added to the vsum. The test checks that the system is present in the view and that a root
-object is created by the reaction. The reaction is defined in the `consistency` folder.
+In this testcase a system is added to the vsum. The test checks that the system is present in the view and that a root object is created by the reaction. The reaction is defined in the `consistency` folder.
 
 ## Tutorial
 
-To dive into the project, we recommend to follow the [Tutorial](./tutorial.md) that is provided in this repository. The
-tutorial will guide you through the process of creating a V-SUM, adding systems, and defining reactions. It will also
-explain how to use the provided tools and features effectively.
+To dive into the project, we recommend to follow the [Tutorial](./tutorial.md) that is provided in this repository. The tutorial will guide you through the process of creating a V-SUM, adding systems, and defining reactions. It will also explain how to use the provided tools and features effectively.
 
 ## Model
 
-The `model` folder contains the meta-model in the ecore format. Note that each ecore file is accompanied by a genmodel.
-The genmodel is used to generate the code. If you update the ecore model, you need to update the genmodel. You can
-easily edit ecore models with the Eclipse Modeling Framework (EMF) in Eclipse. There you can also automatically update
-the genmodel. For more information on how to do that please refer
-to [this Tutorial by Lars Vogel](https://www.vogella.com/tutorials/EclipseEMF/article.html) on EMF and ecore.
+The `model` folder contains the meta-model in the ecore format. Note that each ecore file is accompanied by a genmodel. The genmodel is used to generate the code. If you update the ecore model, you need to update the genmodel. You can easily edit ecore models with the Eclipse Modeling Framework (EMF) in Eclipse. There you can also automatically update the genmodel. For more information on how to do that please refer to [this Tutorial by Lars Vogel](https://www.vogella.com/tutorials/EclipseEMF/article.html) on EMF and ecore.
 
 ## Consistency
 
