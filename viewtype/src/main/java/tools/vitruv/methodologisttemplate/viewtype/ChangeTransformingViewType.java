@@ -27,19 +27,9 @@ public abstract class ChangeTransformingViewType extends IdentityMappingViewType
   }
 
   /**
-   * Builds and returns a new {@link ChangeTransformingViewType} without any filters
-   * added. The created View is a {@link ChangeDerivingView}.
-   *
-   * @return a new instance of a {@link ChangeTransformingViewType}
-   */
-  public static ChangeTransformingViewType create(String name) {
-    return new ChangeTransformingViewTypeImpl(name);
-  }
-
-  /**
    * Registers the given filter which is applied to changes on this View.
    *
-   * @param filter the filter to register to this {@link ChangeTransformingViewType}
+   * @param filter the filter to register to this {@link ChangeTransformingView}
    * @return whether the register operation was successful.
    */
   public abstract boolean registerFilter(Function<List<EChange<HierarchicalId>>, List<EChange<HierarchicalId>>> filter);
@@ -49,8 +39,18 @@ public abstract class ChangeTransformingViewType extends IdentityMappingViewType
    * the view.
    *
    * @param filter the filter to unregister from this
-   *               {@link ChangeTransformingViewType}
+   *               {@link ChangeTransformingView}
    * @return whether the unregister operation was successful.
    */
   public abstract boolean unregisterFilter(Function<List<EChange<HierarchicalId>>, List<EChange<HierarchicalId>>> filter);
+
+  /**
+   * Builds and returns a new {@link ChangeTransformingView} without any filters
+   * added. The created View is a {@link ChangeDerivingView}.
+   *
+   * @return a new instance of a {@link ChangeTransformingView}
+   */
+  public static ChangeTransformingViewType create(String name) {
+    return new ChangeTransformingViewTypeImpl(name);
+  }
 }

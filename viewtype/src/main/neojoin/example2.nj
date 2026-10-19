@@ -1,0 +1,8 @@
+export example2 to "http://vitruv.tools/methodologisttemplate/example2"
+
+import "http://vitruv.tools/methodologisttemplate/model"
+
+from Component c
+create Thing {
+    name := c.name + "Suffix" // The current implementation cannot invert this, so we need to do it manually, see Example2ViewTypeWithInversion.java
+}

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
+import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
 import mir.reactions.modelView2ModelView2.ModelView2ModelView2ChangePropagationSpecification;
 import neojoin.viewtypes.example.ExampleViewType;
 import neojoin.viewtypes.model2_identity.Model2IdentityViewType;
@@ -115,6 +116,15 @@ public class VSUMExample {
     return new VirtualModelBuilder().withStorageFolder(STORAGE_FOLDER)
                .withUserInteractorForResultProvider(
                    new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+               .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+               .withViewType(ExampleViewType::new)
+               .buildAndInitialize();
+  }
+
+  private static VirtualModel createDefaultVirtualModelUsingViewBasedConsistency() throws IOException {
+    return new VirtualModelBuilder().withStorageFolder(STORAGE_FOLDER)
+               .withUserInteractorForResultProvider(
+                   new TestUserInteraction.ResultProvider(new TestUserInteraction()))
                .withChangePropagationSpecifications(CHANGE_PROPAGATION_SPECIFICATION_LEVEL,
                    ViewChangePropagationSpecificationAdapterFactory.INSTANCE.create(
                        Optional.of(new ModelIdentityViewType(null)),
@@ -131,11 +141,7 @@ public class VSUMExample {
   }
 
   private static View getExampleView(VirtualModel vsum) {
-    var viewtype = vsum.getViewTypes()
-                       .stream()
-                       .filter(vt -> vt.getName().equals(ExampleViewType.NAME))
-                       .findFirst()
-                       .orElseThrow();
+    var viewtype = vsum.getViewTypes().stream().filter(vt -> vt.getName().equals(ExampleViewType.NAME)).findFirst().orElseThrow();
     var selector = vsum.createSelector(viewtype);
     return selector.createView();
   }

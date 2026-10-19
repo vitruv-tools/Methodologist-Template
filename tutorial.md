@@ -95,7 +95,7 @@ In order to reflect the protocols and links in the model2 we add a `Communicatio
 The `CommunicationsStandard` should have a property name of type `EString`.
 Add a reference to the `Link` class within the model2.ecore of the newly created `CommunicationsStandard` class.
 **Make sure to set the `Containment` property of the relation to `true` in the ecore file.**
-This is important since all instances of classes of a meta-model must be target.
+This is important since all instances of classes of a meta-model must be contained.
 Once you have saved these changes to the model, don't forget to update the genmodel.
 
 ### 2. Keeping the Models Consistent

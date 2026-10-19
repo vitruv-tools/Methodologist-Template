@@ -14,7 +14,7 @@
   <artifactId>tools.vitruv.methodologisttemplate.model</artifactId>
 
   <name>Model</name>
-  <description/>
+  <description />
 
   <build>
     <plugins>

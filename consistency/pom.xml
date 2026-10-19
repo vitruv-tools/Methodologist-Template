@@ -14,7 +14,7 @@
     <artifactId>tools.vitruv.methodologisttemplate.consistency</artifactId>
 
     <name>Consistency</name>
-    <description/>
+    <description />
 
     <dependencies>
         <!-- project dependencies-->
@@ -26,11 +26,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>tools.vitruv.methodologisttemplate.viewtype2</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -132,11 +127,6 @@
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
-                        <version>${project.version}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>${project.groupId}</groupId>
-                        <artifactId>tools.vitruv.methodologisttemplate.viewtype2</artifactId>
                         <version>${project.version}</version>
                     </dependency>
                 </dependencies>

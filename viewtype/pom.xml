@@ -14,7 +14,7 @@
   <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
 
   <name>Viewtype</name>
-  <description/>
+  <description />
 
   <dependencies>
     <dependency>

@@ -13,7 +13,7 @@ import tools.vitruv.change.composite.description.VitruviusChangeFactory;
 import tools.vitruv.framework.views.impl.ModifiableView;
 
 public class ChangeTransformingViewTypeImpl extends ChangeTransformingViewType {
-  private final List<Function<List<EChange<HierarchicalId>>, List<EChange<HierarchicalId>>>> filters;
+  private List<Function<List<EChange<HierarchicalId>>, List<EChange<HierarchicalId>>>> filters;
 
   public ChangeTransformingViewTypeImpl(String name) {
     super(name);

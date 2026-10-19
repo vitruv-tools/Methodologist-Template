@@ -30,13 +30,13 @@
             genModel="target/generated-sources/neojoin/ecore/model2_identity/model2_identity.genmodel"/>
    </extension>
 
-  <extension point="org.eclipse.emf.ecore.generated_package">
-    <!-- @generated example2 -->
-    <package
+   <extension point="org.eclipse.emf.ecore.generated_package">
+      <!-- @generated example2 -->
+      <package
             uri="http://vitruv.tools/methodologisttemplate/example2"
             class="neojoin.viewtypes.example2.Example2Package"
             genModel="target/generated-sources/neojoin/ecore/example2/example2.genmodel"/>
-  </extension>
+   </extension>
 
   <extension point="org.eclipse.emf.ecore.generated_package">
     <!-- @generated example_empty -->
