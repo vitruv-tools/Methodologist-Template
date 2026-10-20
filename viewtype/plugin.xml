@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.0"?>
+
+<!--
+-->
+
+<plugin>
+
+   <extension point="org.eclipse.emf.ecore.generated_package">
+      <!-- @generated example -->
+      <package
+            uri="http://vitruv.tools/methodologisttemplate/example"
+            class="neojoin.viewtypes.example.ExamplePackage"
+            genModel="target/generated-sources/neojoin/ecore/example/example.genmodel"/>
+   </extension>
+
+   <extension point="org.eclipse.emf.ecore.generated_package">
+      <!-- @generated model_identity -->
+      <package
+            uri="http://vitruv.tools/methodologisttemplate/model_identity"
+            class="neojoin.viewtypes.model_identity.ModelIdentityPackage"
+            genModel="target/generated-sources/neojoin/ecore/model_identity/model_identity.genmodel"/>
+   </extension>
+
+   <extension point="org.eclipse.emf.ecore.generated_package">
+      <!-- @generated model2_identity -->
+      <package
+            uri="http://vitruv.tools/methodologisttemplate/model2_identity"
+            class="neojoin.viewtypes.model2_identity.Model2IdentityPackage"
+            genModel="target/generated-sources/neojoin/ecore/model2_identity/model2_identity.genmodel"/>
+   </extension>
+
+   <extension point="org.eclipse.emf.ecore.generated_package">
+      <!-- @generated example2 -->
+      <package
+            uri="http://vitruv.tools/methodologisttemplate/example2"
+            class="neojoin.viewtypes.example2.Example2Package"
+            genModel="target/generated-sources/neojoin/ecore/example2/example2.genmodel"/>
+   </extension>
+
+  <extension point="org.eclipse.emf.ecore.generated_package">
+    <!-- @generated example_empty -->
+    <package
+            uri="http://vitruv.tools/methodologisttemplate/example_empty"
+            class="neojoin.viewtypes.example_empty.ExampleEmptyPackage"
+            genModel="target/generated-sources/neojoin/ecore/example_empty/example_empty.genmodel"/>
+  </extension>
+
+  <extension point="org.eclipse.emf.ecore.generated_package">
+    <!-- @generated example_correspondence -->
+    <package
+            uri="http://vitruv.tools/methodologisttemplate/example_correspondence"
+            class="neojoin.viewtypes.example_correspondence.ExampleCorrespondencePackage"
+            genModel="target/generated-sources/neojoin/ecore/example_correspondence/example_correspondence.genmodel"/>
+  </extension>
+
+</plugin>

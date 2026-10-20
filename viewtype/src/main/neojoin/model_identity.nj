@@ -1,0 +1,6 @@
+export model_identity to "http://vitruv.tools/methodologisttemplate/model_identity"
+
+import "http://vitruv.tools/methodologisttemplate/model"
+
+from System
+create root System

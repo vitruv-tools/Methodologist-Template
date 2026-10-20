@@ -1,0 +1,6 @@
+export model2_identity to "http://vitruv.tools/methodologisttemplate/model2_identity"
+
+import "http://vitruv.tools/methodologisttemplate/model2"
+
+from Root
+create root Root

@@ -2,8 +2,13 @@ package tools.vitruv.methodologisttemplate.vsum;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.function.Consumer;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
+import mir.reactions.modelView2ModelView2.ModelView2ModelView2ChangePropagationSpecification;
+import neojoin.viewtypes.example.ExampleViewType;
+import neojoin.viewtypes.model2_identity.Model2IdentityViewType;
+import neojoin.viewtypes.model_identity.ModelIdentityViewType;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
@@ -12,6 +17,7 @@ import tools.vitruv.change.composite.description.PropagatedChange;
 import tools.vitruv.change.composite.description.VitruviusChange;
 import tools.vitruv.change.composite.propagation.ChangePropagationListener;
 import tools.vitruv.change.testutils.TestUserInteraction;
+import tools.vitruv.compmodelcons.change.ViewChangePropagationSpecificationAdapterFactory;
 import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 import tools.vitruv.framework.views.CommittableView;
 import tools.vitruv.framework.views.View;
@@ -28,6 +34,12 @@ import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
  * via a {@link ChangePropagationListener}.
  */
 public class VSUMExample {
+  // By default, this is zero. In the case of a componentized VSUM, we would need to select the
+  // correct level. Say we have two parts, one with models A and B, and one with models C and D.
+  // Then, the specifications A<->B and C<->D would be on level 0,
+  // while the specification A<->C would be on level 1.
+  // This ensures that a part is fully consistent before we propagate changes to the other part.
+  private static final int CHANGE_PROPAGATION_SPECIFICATION_LEVEL = 0;
 
   /** Path to the OCL constraint file, located alongside the Reactions in the consistency module. */
   private static final Path CONSTRAINT_FILE =
@@ -88,32 +100,49 @@ public class VSUMExample {
         });
 
     CommittableView view = getDefaultView(vsum).withChangeDerivingTrait();
-    modifyView(
-        view,
-        (CommittableView v) -> {
-          // After this commit, Reactions fire and then the ChangePropagationListener
-          // automatically evaluates the constraints defined in constraints.ocl.
-          // registerRoot (rather than getRootObjects().add()) is required here because this
-          // System is a brand-new root: Vitruvius needs an explicit URI to know which resource
-          // to persist it into.
-          v.registerRoot(
-              ModelFactory.eINSTANCE.createSystem(),
-              URI.createFileURI(STORAGE_FOLDER.resolve("example.model").toString()));
-        });
+    modifyView(view, (CommittableView v) -> {
+      // After this commit, Reactions fire and then the ChangePropagationListener
+      // automatically evaluates the constraints defined in constraints.ocl.
+      // registerRoot (rather than getRootObjects().add()) is required here because this
+      // System is a brand-new root: Vitruvius needs an explicit URI to know which resource
+      // to persist it into.
+      v.registerRoot(
+          ModelFactory.eINSTANCE.createSystem(),
+          URI.createFileURI(STORAGE_FOLDER.resolve("example.model").toString()));
+    });
   }
 
   private static VirtualModel createDefaultVirtualModel() throws IOException {
-    return new VirtualModelBuilder()
-        .withStorageFolder(STORAGE_FOLDER)
-        .withUserInteractorForResultProvider(
-            new TestUserInteraction.ResultProvider(new TestUserInteraction()))
-        .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
-        .buildAndInitialize();
+    return new VirtualModelBuilder().withStorageFolder(STORAGE_FOLDER)
+               .withUserInteractorForResultProvider(
+                   new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+               .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+               .withViewType(ExampleViewType::new)
+               .buildAndInitialize();
+  }
+
+  private static VirtualModel createDefaultVirtualModelUsingViewBasedConsistency() throws IOException {
+    return new VirtualModelBuilder().withStorageFolder(STORAGE_FOLDER)
+               .withUserInteractorForResultProvider(
+                   new TestUserInteraction.ResultProvider(new TestUserInteraction()))
+               .withChangePropagationSpecifications(CHANGE_PROPAGATION_SPECIFICATION_LEVEL,
+                   ViewChangePropagationSpecificationAdapterFactory.INSTANCE.create(
+                       Optional.of(new ModelIdentityViewType(null)),
+                       new ModelView2ModelView2ChangePropagationSpecification(),
+                       Optional.of(new Model2IdentityViewType(null))))
+               .withViewType(ExampleViewType::new)
+               .buildAndInitialize();
   }
 
   private static View getDefaultView(VirtualModel vsum) {
     var selector = vsum.createSelector(ViewTypeFactory.createIdentityMappingViewType("default"));
     selector.getSelectableElements().forEach(it -> selector.setSelected(it, true));
+    return selector.createView();
+  }
+
+  private static View getExampleView(VirtualModel vsum) {
+    var viewtype = vsum.getViewTypes().stream().filter(vt -> vt.getName().equals(ExampleViewType.NAME)).findFirst().orElseThrow();
+    var selector = vsum.createSelector(viewtype);
     return selector.createView();
   }
 

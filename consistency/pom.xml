@@ -23,6 +23,11 @@
             <artifactId>tools.vitruv.methodologisttemplate.model</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Vitruvius dependencies -->
         <dependency>
@@ -81,7 +86,8 @@
                             <outputConfigurations>
                                 <outputConfiguration>
                                     <outputDirectory>
-                                        ${project.build.directory}/generated-sources/reactions</outputDirectory>
+                                        ${project.build.directory}/generated-sources/reactions
+                                    </outputDirectory>
                                 </outputConfiguration>
                             </outputConfigurations>
                         </language>
@@ -90,7 +96,8 @@
                             <outputConfigurations>
                                 <outputConfiguration>
                                     <outputDirectory>
-                                        ${project.build.directory}/generated-sources/xtend</outputDirectory>
+                                        ${project.build.directory}/generated-sources/xtend
+                                    </outputDirectory>
                                 </outputConfiguration>
                             </outputConfigurations>
                         </language>
@@ -115,6 +122,11 @@
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>tools.vitruv.methodologisttemplate.model</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
                         <version>${project.version}</version>
                     </dependency>
                 </dependencies>
