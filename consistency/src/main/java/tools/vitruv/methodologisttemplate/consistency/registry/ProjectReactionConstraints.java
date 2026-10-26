@@ -9,65 +9,61 @@ import mir.reactions.model2Model2.ProtocolInsertedIntoSystemReaction;
 
 /**
  * Hand-maintained association between this project's Reactions (declared in {@code
- * templateReactions.reactions}) and the OCL constraints, both the invariants in {@code
- * constraints.ocl} and the pre-/postconditions in {@code prepost-example.ocl} — that must hold
- * around each Reaction's execution.
+ * templateReactions.reactions}) and their contracts in {@code prepost-example.ocl}: the
+ * preconditions checked right before and the postconditions checked right after each execution of
+ * the Reaction (see {@link HookedReaction}).
  *
- * <p>Extend this alongside adding a Reaction and its constraint to the relevant {@code .ocl} file —
- * this file is the single place that ties the two together. If a Reaction is renamed or removed,
- * the compiler will flag every registration referencing it, because the key is the generated class,
- * not a string.
+ * <p>Extend this alongside adding a Reaction and its contract to the {@code .ocl} file -- this
+ * file is the single place that ties the two together. If a Reaction is renamed or removed, the
+ * compiler will flag every registration referencing it, because the key is the generated class,
+ * not a string. A (contextType, constraintName) pair that no evaluated {@code .ocl} file declares
+ * fails with an {@link UnknownConstraintException}.
  *
- * <p>{@code SystemInsertedAsRootReaction} and {@code ProtocolInsertedIntoLinkReaction} have no
- * entries below because neither {@code .ocl} file currently declares a constraint over {@code
- * model::System}, {@code model2::Root}, or the {@code model::Link[protocol]}/{@code
- * model2::Link[standard]} relationship.
+ * <p>Invariants are not registered here: all invariants in {@code constraints.ocl} are checked
+ * after every commit, independent of which Reactions ran (see {@code ContractGuardedVsum} in the
+ * {@code vsum} module). {@code SystemInsertedAsRootReaction} and {@code
+ * ProtocolInsertedIntoLinkReaction} have no contract.
  */
 public final class ProjectReactionConstraints {
+
+  private static final String ROOT = "model2::Root";
 
   private ProjectReactionConstraints() {}
 
   public static ReactionConstraintRegistry buildRegistry() {
     var registry = new ReactionConstraintRegistry();
+    var componentHasName = new ConstraintRef("model::Component", "ComponentHasNameBeforeSync");
 
     registry.register(
         ComponentInsertedIntoSystemReaction.class,
-        new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity"),
-        new ConstraintRef("model::Component", "ComponentHasCorrespondence"),
-        new ConstraintRef("model::Component", "ComponentNameMatchesEntityName"),
-        // pre-/postconditions from prepost-example.ocl — genuinely evaluated when checked via
-        // the automatic Reaction-Constraint hook (a real transaction), skipped when checked via
-        // VitruvOCLGateway#evaluateAll() with no transaction — see that file's header comment.
-        new ConstraintRef("model::Component", "ComponentHasNameBeforeSync"),
-        new ConstraintRef("model::Component", "ComponentHasCorrespondingEntityAfterSync"));
+        componentHasName,
+        new ConstraintRef(ROOT, "ComponentInsertCreatedExactlyOneEntity"),
+        new ConstraintRef("model2::Entity", "NewEntityMatchesComponent"));
 
     registry.register(
         ComponentRenamedReaction.class,
-        new ConstraintRef("model::Component", "ComponentNameMatchesEntityName"),
-        new ConstraintRef("model2::Entity", "EntityNameMatchesComponentAfterRename"));
+        componentHasName,
+        new ConstraintRef("model2::Entity", "RenamedEntityMatchesComponent"));
 
     registry.register(
         ComponentDeletedReaction.class,
-        new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity"),
-        new ConstraintRef("model::Component", "ComponentHasCorrespondence"));
+        new ConstraintRef(ROOT, "ComponentDeleteRemovedExactlyOneEntity"));
 
     registry.register(
         LinkInsertedIntoSystemReaction.class,
-        new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntities"),
         new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync"),
-        new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntitiesAfterSync"));
+        new ConstraintRef(ROOT, "LinkInsertCreatedExactlyOneLink"),
+        new ConstraintRef("model2::Link", "NewLinkCorrespondsToLink"));
 
     registry.register(
         ComponentInsertedIntoLinkReaction.class,
-        new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntities"),
-        new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync"),
-        new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntitiesAfterSync"));
+        new ConstraintRef("model2::Link", "LinkEntitiesCorrespondToLinkComponents"));
 
     registry.register(
         ProtocolInsertedIntoSystemReaction.class,
         new ConstraintRef("model::Protocol", "ProtocolHasNameBeforeSync"),
         new ConstraintRef(
-            "model2::CommunicationStandard", "CommunicationStandardNameMatchesProtocolAfterSync"));
+            "model2::CommunicationStandard", "NewStandardMatchesProtocol"));
 
     return registry;
   }

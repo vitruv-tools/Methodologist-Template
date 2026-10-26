@@ -20,7 +20,8 @@ class ConstraintViolationsDetectedExceptionTest {
     var exception = new ConstraintViolationsDetectedException(List.of(violation));
 
     assertEquals(
-        "1 postcondition(s) violated by the Reaction(s) that just fired:\n"
+        "1 postcondition(s) violated by the Reaction that just ran -- its result was rejected"
+            + " and the commit was stopped:\n"
             + "the diagnostic vitruvocl produced",
         exception.getMessage());
   }
@@ -33,9 +34,13 @@ class ConstraintViolationsDetectedExceptionTest {
 
     var exception = new ConstraintViolationsDetectedException(List.of(violation));
 
-    // PreconditionGuard throws this before the Reaction's own execute() ever runs -- "that just
-    // fired" would be wrong here, since the whole point is that it did not.
-    assertTrue(exception.getMessage().startsWith("1 precondition(s) violated -- the Reaction was not executed:"));
+    // ContractEnforcer throws this before the Reaction's own execute() ever runs.
+    assertTrue(
+        exception
+            .getMessage()
+            .startsWith(
+                "1 precondition(s) violated -- the Reaction was not executed and the commit was"
+                    + " stopped:"));
   }
 
   @Test
@@ -50,7 +55,21 @@ class ConstraintViolationsDetectedExceptionTest {
     assertTrue(
         exception
             .getMessage()
-            .startsWith("1 precondition(s) and 1 postcondition(s) violated by the Reaction(s) that just fired:"));
+            .startsWith("1 precondition(s) and 1 postcondition(s) violated -- the commit was stopped:"));
+  }
+
+  @Test
+  void saysThatTheCommitWasRolledBackForInvariantsCheckedAfterTheCommit() {
+    var violation =
+        new ViolatedConstraint(
+            "model2::Link", "LinkHasAtLeastTwoEntities", ConstraintKind.INVARIANT, "diagnostic text");
+
+    var exception = new ConstraintViolationsDetectedException(List.of(violation));
+
+    assertEquals(
+        "1 invariant(s) violated after the commit -- the commit was rolled back:\ndiagnostic text",
+        exception.getMessage());
+    assertEquals(List.of(violation), exception.violations());
   }
 
   @Test

@@ -3,14 +3,20 @@ package tools.vitruv.methodologisttemplate.consistency.registry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-import java.util.Set;
 import org.eclipse.emf.ecore.EObject;
 import org.junit.jupiter.api.Test;
 import tools.vitruv.change.atomic.EChange;
 import tools.vitruv.dsls.reactions.runtime.reactions.Reaction;
 import tools.vitruv.dsls.reactions.runtime.state.ReactionExecutionState;
 
+/**
+ * Unit tests of {@link HookedReaction} without a VSUM. Checking a contract against real models,
+ * including asking the user and stopping the commit, is covered by {@link
+ * ReactionContractIntegrationTest}.
+ */
 class HookedReactionTest {
 
   /** Mimics the shape the Reactions compiler generates: a public match-check method. */
@@ -46,102 +52,52 @@ class HookedReactionTest {
   }
 
   @Test
-  void recordsFiredAndDelegatesWhenTriggerMatches() {
-    var collector = new FiredReactionsCollector();
+  void delegatesUncheckedAsLongAsNoCoordinatorIsBound() {
     var fake = new MatchingFakeReaction();
-    var hooked = new HookedReaction(fake, collector, new PreconditionGuard());
+    var hooked = new HookedReaction(fake, new ContractEnforcer());
 
     hooked.execute(null, null);
 
-    assertTrue(fake.executed, "delegate.execute must always run regardless of match");
-    assertEquals(Set.of(MatchingFakeReaction.class), collector.drain());
+    assertTrue(fake.executed);
   }
 
   @Test
-  void delegatesButDoesNotRecordWhenTriggerDoesNotMatch() {
-    var collector = new FiredReactionsCollector();
+  void delegatesUncheckedWhenTheReactionHasNoContract() {
+    var coordinator = mock(ConstraintEvaluationCoordinator.class);
+    when(coordinator.hasContract(MatchingFakeReaction.class)).thenReturn(false);
+    var enforcer = new ContractEnforcer();
+    enforcer.bind(coordinator, new ContractLog(), () -> null);
+    var fake = new MatchingFakeReaction();
+
+    new HookedReaction(fake, enforcer).execute(null, null);
+
+    assertTrue(fake.executed);
+  }
+
+  @Test
+  void delegatesUncheckedWhenTheTriggerDoesNotMatch() {
+    var coordinator = mock(ConstraintEvaluationCoordinator.class);
+    when(coordinator.hasContract(NonMatchingFakeReaction.class)).thenReturn(true);
+    var enforcer = new ContractEnforcer();
+    enforcer.bind(coordinator, new ContractLog(), () -> null);
     var fake = new NonMatchingFakeReaction();
-    var hooked = new HookedReaction(fake, collector, new PreconditionGuard());
 
-    hooked.execute(null, null);
+    new HookedReaction(fake, enforcer).execute(null, null);
 
-    assertTrue(fake.executed, "delegate.execute must always run regardless of match");
-    assertEquals(Set.of(), collector.drain());
+    assertTrue(fake.executed, "delegate.execute must always run; it no-ops itself on a mismatch");
   }
 
   @Test
   void rejectsReactionWithoutTheGeneratedMatchMethod() {
-    var collector = new FiredReactionsCollector();
-
     assertThrows(
         IllegalStateException.class,
-        () -> new HookedReaction(new NoMatchMethodFakeReaction(), collector, new PreconditionGuard()));
+        () -> new HookedReaction(new NoMatchMethodFakeReaction(), new ContractEnforcer()));
   }
 
   @Test
   void wrappedReactionClassReflectsTheDelegate() {
-    var collector = new FiredReactionsCollector();
-    var hooked = new HookedReaction(new MatchingFakeReaction(), collector, new PreconditionGuard());
+    var hooked = new HookedReaction(new MatchingFakeReaction(), new ContractEnforcer());
 
     assertEquals(MatchingFakeReaction.class, hooked.wrappedReactionClass());
-  }
-
-  @Test
-  void doesNotExecuteWhenTheBoundPreconditionGuardRejectsIt() {
-    var collector = new FiredReactionsCollector();
-    var registry = new ReactionConstraintRegistry();
-    var ref = new ConstraintRef("model::Component", "SomePrecondition");
-    registry.register(MatchingFakeReaction.class, ref);
-
-    var ocl = org.mockito.Mockito.mock(VitruvOCLGateway.class);
-    org.mockito.Mockito.when(ocl.evaluateAll(java.util.List.of()))
-        .thenReturn(
-            java.util.List.of(
-                new EvaluatedConstraint(
-                    "model::Component",
-                    "SomePrecondition",
-                    ConstraintKind.PRECONDITION,
-                    false,
-                    "precondition not met")));
-
-    var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
-    var guard = new PreconditionGuard();
-    guard.bind(coordinator);
-
-    var fake = new MatchingFakeReaction();
-    var hooked = new HookedReaction(fake, collector, guard);
-
-    assertThrows(ConstraintViolationsDetectedException.class, () -> hooked.execute(null, null));
-
-    assertTrue(
-        !fake.executed, "delegate.execute must not run when a registered precondition is violated");
-    assertEquals(Set.of(), collector.drain());
-  }
-
-  @Test
-  void executesNormallyWhenTheBoundPreconditionGuardIsSatisfied() {
-    var collector = new FiredReactionsCollector();
-    var registry = new ReactionConstraintRegistry();
-    var ref = new ConstraintRef("model::Component", "SomePrecondition");
-    registry.register(MatchingFakeReaction.class, ref);
-
-    var ocl = org.mockito.Mockito.mock(VitruvOCLGateway.class);
-    org.mockito.Mockito.when(ocl.evaluateAll(java.util.List.of()))
-        .thenReturn(
-            java.util.List.of(
-                new EvaluatedConstraint(
-                    "model::Component", "SomePrecondition", ConstraintKind.PRECONDITION, true, "OK")));
-
-    var coordinator = new ConstraintEvaluationCoordinator(registry, ocl);
-    var guard = new PreconditionGuard();
-    guard.bind(coordinator);
-
-    var fake = new MatchingFakeReaction();
-    var hooked = new HookedReaction(fake, collector, guard);
-
-    hooked.execute(null, null);
-
-    assertTrue(fake.executed, "delegate.execute must run when the precondition is satisfied");
-    assertEquals(Set.of(MatchingFakeReaction.class), collector.drain());
   }
 }

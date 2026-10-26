@@ -16,11 +16,11 @@ import tools.vitruv.dsls.reactions.runtime.structure.ReactionsImportPath;
 
 /**
  * Drop-in replacement for {@link Model2Model2ChangePropagationSpecification} that wraps every
- * registered Reaction in a {@link HookedReaction}, so each one reports into this instance's
- * {@link FiredReactionsCollector} whenever it actually fires. Pair it with a {@link
- * ReactionConstraintCheckingListener} registered on the same VSUM (using {@link #getCollector()})
- * to get automatic, Reaction-scoped constraint checking after every commit -- see {@code
- * AutomaticConstraintCheckingIntegrationTest} for the full wiring.
+ * registered Reaction in a {@link HookedReaction}, so the contract of each Reaction (its pre- and
+ * postconditions, see {@link ProjectReactionConstraints}) is checked on every execution. Call
+ * {@link ContractEnforcer#bind} on {@link #getContractEnforcer()} right after building the VSUM --
+ * see {@code ContractGuardedVsum} and {@code VSUMExampleTest} in the {@code vsum} module for the
+ * full wiring.
  *
  * <p><b>Maintenance note:</b> {@link #setup()} below must be kept in sync with the generated
  * {@link Model2Model2ChangePropagationSpecification#setup()}. It cannot simply call {@code
@@ -31,18 +31,14 @@ import tools.vitruv.dsls.reactions.runtime.structure.ReactionsImportPath;
  * update the matching {@code addReaction(hook(new ...))} call below too --
  * {@code HookedModel2Model2ChangePropagationSpecificationTest} fails if the two ever diverge.
  *
- * <p><b>Why {@code collector} is only created once:</b> {@code
+ * <p><b>Why {@code contractEnforcer} is only created once:</b> {@code
  * AbstractChangePropagationSpecification.setUserInteractor(...)} -- called by the Reactions
  * runtime's {@code ChangePropagator} before every single transactional change round, not just
- * once -- clears the Reaction list and calls {@link #setup()} again each time (presumably so
- * generated Reactions, which hold per-change instance fields like {@code insertChange}, never
- * carry stale state between rounds). If {@link #setup()} created a fresh {@link
- * FiredReactionsCollector} every time it re-runs, a {@link ReactionConstraintCheckingListener}
- * holding a reference obtained via {@link #getCollector()} right after construction would end up
- * watching a collector that no longer receives anything -- confirmed by instrumenting {@code
- * System.identityHashCode} across rounds. Reusing the same collector across every {@link
- * #setup()} re-invocation (guarded by the null check below) keeps it valid for the lifetime of
- * this specification instance.
+ * once -- clears the Reaction list and calls {@link #setup()} again each time. If {@link #setup()}
+ * created a fresh {@link ContractEnforcer} every time it re-runs, the instance bound right after
+ * construction would no longer be the one the Reactions use. Reusing the same enforcer across
+ * every {@link #setup()} re-invocation (guarded by the null check below) keeps it valid for the
+ * lifetime of this specification instance.
  */
 public final class HookedModel2Model2ChangePropagationSpecification
     extends Model2Model2ChangePropagationSpecification {
@@ -50,30 +46,21 @@ public final class HookedModel2Model2ChangePropagationSpecification
   // Assigned inside setup(), which the superclass constructor invokes (via virtual dispatch)
   // before this subclass's own constructor body would otherwise run -- a plain constructor
   // parameter/field-initializer can't be used here, since it would still be null at that point.
-  private FiredReactionsCollector collector;
-  private PreconditionGuard preconditionGuard;
-
-  /** Available once construction completes; share it with a {@link ReactionConstraintCheckingListener}. */
-  public FiredReactionsCollector getCollector() {
-    return collector;
-  }
+  private ContractEnforcer contractEnforcer;
 
   /**
-   * Available once construction completes; call {@link PreconditionGuard#bind} on it with a
-   * {@link ConstraintEvaluationCoordinator} right after building the VSUM, so precondition
-   * violations actually block the Reaction they're registered against instead of doing nothing.
+   * Available once construction completes; call {@link ContractEnforcer#bind} on it with a {@link
+   * ConstraintEvaluationCoordinator} right after building the VSUM, so the Reactions' contracts
+   * are actually checked. Until then, Reactions run unchecked.
    */
-  public PreconditionGuard getPreconditionGuard() {
-    return preconditionGuard;
+  public ContractEnforcer getContractEnforcer() {
+    return contractEnforcer;
   }
 
   @Override
   protected void setup() {
-    if (collector == null) {
-      collector = new FiredReactionsCollector();
-    }
-    if (preconditionGuard == null) {
-      preconditionGuard = new PreconditionGuard();
+    if (contractEnforcer == null) {
+      contractEnforcer = new ContractEnforcer();
     }
 
     org.eclipse.emf.ecore.EPackage.Registry.INSTANCE.putIfAbsent(
@@ -94,7 +81,7 @@ public final class HookedModel2Model2ChangePropagationSpecification
   }
 
   private HookedReaction hook(Reaction reaction) {
-    return new HookedReaction(reaction, collector, preconditionGuard);
+    return new HookedReaction(reaction, contractEnforcer);
   }
 
   private RoutinesFacade routinesFacade(ReactionExecutionState executionState) {

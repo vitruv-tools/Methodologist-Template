@@ -4,34 +4,28 @@ import java.util.List;
 import org.eclipse.emf.ecore.EObject;
 import tools.vitruv.change.atomic.EChange;
 
-/** Seam over VitruvOCL's whole-file evaluation, so callers can be unit-tested without a VSUM. */
+/** Seam over VitruvOCL, so callers can be unit-tested without a VSUM. */
 public interface VitruvOCLGateway {
 
   /**
-   * Every constraint declared in the evaluated file(s), regardless of whether it was satisfied,
-   * evaluated with no transaction context at all -- {@code pre}/{@code post} blocks are therefore
-   * skipped outright (reported as vacuously satisfied) rather than genuinely evaluated.
+   * One {@code inv}/{@code pre}/{@code post} unit declared in the evaluated file(s).
    *
-   * <p><b>Deliberately not implemented as {@code evaluateAll(List.of())}:</b> an empty transaction
-   * is not the same thing as no transaction context. {@link #evaluateAll(List)} treats an empty
-   * list as "the transaction genuinely made zero changes" and evaluates {@code pre}/{@code post}
-   * for real against it -- e.g. {@code OCLisModified} would then evaluate to {@code false} for
-   * every instance, which is a real (if usually uninteresting) result. This method instead means
-   * "there is no transaction to evaluate against at all", which must skip {@code pre}/{@code
-   * post} outright to avoid exactly that kind of vacuous-empty-transaction false violation. Prefer
-   * {@link #evaluateAll(List)} whenever a real transaction is available, such as from a
-   * Reaction-execution hook -- see {@link ReactionConstraintCheckingListener}.
+   * @param ref the unit's (contextType, constraintName)
+   * @param kind invariant, precondition or postcondition
+   * @param text the unit's source text, as VitruvOCL evaluates it
    */
-  List<EvaluatedConstraint> evaluateAll();
+  record DeclaredConstraint(ConstraintRef ref, ConstraintKind kind, String text) {}
+
+  /** Every named constraint declared in the evaluated file(s). Requires a registered VSUM. */
+  List<DeclaredConstraint> declarations();
 
   /**
-   * Every constraint declared in the evaluated file(s), regardless of whether it was satisfied,
-   * evaluated against {@code transaction} -- unlike {@link #evaluateAll()}, {@code pre}/{@code
-   * post} blocks are genuinely evaluated here, not skipped.
-   *
-   * @param transaction the ordered list of atomic changes between pre-state and the current
-   *     post-state, evaluated by {@code @pre}/{@code OCLisNew}/{@code OCLisModified}/{@code
-   *     OCLisDeleted} (may be empty)
+   * Evaluates one pre- or postcondition against {@code transaction}: {@code @pre}, {@code
+   * OCLisNew}, {@code OCLisModified} and {@code OCLisDeleted} refer to these changes (may be
+   * empty). Like an invariant, {@code self} ranges over all instances of the context type.
    */
-  List<EvaluatedConstraint> evaluateAll(List<EChange<EObject>> transaction);
+  EvaluatedConstraint evaluate(DeclaredConstraint constraint, List<EChange<EObject>> transaction);
+
+  /** Evaluates every invariant declared in the evaluated file(s) against the current state. */
+  List<EvaluatedConstraint> evaluateInvariants();
 }

@@ -1,22 +1,31 @@
 -- Example Pre-/Postcondition Constraints for the Methodologist Template
 --
 -- Unlike constraints.ocl (which uses OCL# invariants, "inv"), this file demonstrates the
--- pre-/postcondition syntax ("pre" / "post") of the same OCL# language, applied to the
--- metaclasses already mapped to Reactions in ProjectReactionConstraints.buildRegistry()
--- (see tools.vitruv.methodologisttemplate.consistency.registry). It exists to exercise the
--- Reaction-Constraint Registry workflow end-to-end with pre/post constraints specifically,
--- as requested for manual testing.
+-- pre-/postcondition syntax ("pre" / "post") of the same OCL# language. The constraints here are
+-- the contracts of the Reactions in templateReactions.reactions: ProjectReactionConstraints
+-- (see tools.vitruv.methodologisttemplate.consistency.registry) assigns them to Reactions, and
+-- HookedReaction checks them on every execution of an assigned Reaction:
 --
--- "pre"/"post" bodies below are genuinely evaluated (not skipped/vacuous) whenever the caller
--- supplies a real transaction -- see VitruvOCLGateway#evaluateAll(List) and
--- ReactionConstraintCheckingListener, which is what VSUMExampleTest#createDefaultVirtualModel
--- wires up automatically for every commit. Without a transaction (VitruvOCLGateway#evaluateAll(),
--- no args), pre/post blocks are skipped outright instead -- see vitruvocl-language's
--- EvaluationVisitor#transactionSupported.
+--   - pre  is checked right before the Reaction runs, against the current state.
+--   - post is checked right after the Reaction, against the changes made by this execution only:
+--          x@pre is the value before the Reaction, OCLisNew / OCLisModified / OCLisDeleted refer
+--          to what this execution created, changed or deleted.
+--   - Both are evaluated exactly like invariants: self ranges over all instances of the context
+--     type, other elements are reached via fully qualified navigation and the ~ operator.
+--   - A Reaction runs once per triggering change, and other Reactions of the same commit may not
+--     have run yet when its postcondition is checked (e.g. the second of two Components inserted
+--     in one commit). Postconditions therefore restrict themselves to the elements this Reaction
+--     touched, e.g. "self.OCLisNew implies ...".
+--   - If a contract is violated, the user is asked whether to continue anyway; rejecting stops
+--     the whole commit and restores the models (see ContractEnforcer and ContractGuardedVsum).
+--
+-- What has to hold for the system as a whole -- e.g. that every Link in model2 references at
+-- least two entities -- stays an invariant in constraints.ocl. All invariants are checked after
+-- every commit, which also catches a Reaction that does nothing although it should.
 --
 -- Syntax notes (OCL#):
---   - context <Namespace>::<Metaclass> pre <ConstraintName>:  -- intended: before a Reaction fires
---   - context <Namespace>::<Metaclass> post <ConstraintName>: -- intended: after a Reaction fires
+--   - context <Namespace>::<Metaclass> pre <ConstraintName>:
+--   - context <Namespace>::<Metaclass> post <ConstraintName>:
 --   - @severity / @message work exactly as with "inv" (see constraints.ocl for the full syntax
 --     notes; they are not repeated here).
 
@@ -28,32 +37,69 @@ context model::Component pre ComponentHasNameBeforeSync:
     self.name != ""
 
 -- Postcondition for ComponentInsertedIntoSystemReaction:
--- after the reaction fires, every Component must have exactly one corresponding Entity.
-context model::Component post ComponentHasCorrespondingEntityAfterSync:
+-- the execution created exactly one Entity ...
+context model2::Root post ComponentInsertCreatedExactlyOneEntity:
     @severity CRITICAL
-    @message "Component {self.name} must have exactly one corresponding Entity in model2 after sync"
-    model2::Entity.allInstances().select(~).size() == 1
+    @message "Inserting a Component did not create exactly one Entity in model2"
+    model2::Entity.allInstances().select(e | e.OCLisNew).size() == 1
+
+-- ... and that Entity corresponds to a Component of the same name.
+context model2::Entity post NewEntityMatchesComponent:
+    @severity CRITICAL
+    @message "Entity {self.name} was created without a corresponding Component of the same name"
+    self.OCLisNew
+    implies
+    model::Component.allInstances().exists(c | self ~ c and self.name == c.name)
 
 -- Postcondition for ComponentRenamedReaction:
--- after the reaction fires, the corresponding Entity's name must match the Component's new name.
-context model2::Entity post EntityNameMatchesComponentAfterRename:
+-- an Entity changed by the Reaction carries the name of its Component.
+context model2::Entity post RenamedEntityMatchesComponent:
     @severity MAJOR
-    @message "Entity {self.name} must match the name of its corresponding Component after a rename"
-    model::Component.allInstances().select(~).forAll(c | c.name == self.name)
+    @message "Entity {self.name} was renamed, but not to the name of its corresponding Component"
+    self.OCLisModified
+    implies
+    model::Component.allInstances().select(c | self ~ c).forAll(c | c.name == self.name)
 
--- Precondition for LinkInsertedIntoSystemReaction / ComponentInsertedIntoLinkReaction:
+-- Postcondition for ComponentDeletedReaction:
+-- the execution deleted exactly one Entity.
+context model2::Root post ComponentDeleteRemovedExactlyOneEntity:
+    @severity MAJOR
+    @message "Deleting a Component did not delete exactly one Entity in model2"
+    self.entities@pre.select(e | e.OCLisDeleted).size() == 1
+
+-- Precondition for LinkInsertedIntoSystemReaction:
 -- a Link must reference at least one Component before it is considered ready to sync.
 context model::Link pre LinkHasAtLeastOneComponentBeforeSync:
     @severity MAJOR
     @message "{self} must reference at least one Component before it is synced to model2"
     self.components.size() >= 1
 
--- Postcondition for LinkInsertedIntoSystemReaction / ComponentInsertedIntoLinkReaction:
--- after the reactions fire, the corresponding Link in model2 must reference at least two entities.
-context model2::Link post LinkHasAtLeastTwoEntitiesAfterSync:
+-- Postconditions for LinkInsertedIntoSystemReaction:
+-- the execution created exactly one Link in model2, and it corresponds to a Link in model.
+context model2::Root post LinkInsertCreatedExactlyOneLink:
     @severity MAJOR
-    @message "{self} must reference at least two entities after sync"
-    self.entities.size() >= 2
+    @message "Inserting a Link did not create exactly one Link in model2"
+    model2::Link.allInstances().select(l | l.OCLisNew).size() == 1
+
+context model2::Link post NewLinkCorrespondsToLink:
+    @severity MAJOR
+    @message "{self} was created without a corresponding Link in model"
+    self.OCLisNew
+    implies
+    model::Link.allInstances().exists(l | self ~ l)
+
+-- Postcondition for ComponentInsertedIntoLinkReaction:
+-- every entity of a Link changed by the Reaction corresponds to a Component of its Link. (Not
+-- "at least two entities": after the first of two Components is added, the second Reaction has not
+-- run yet -- that is the invariant LinkHasAtLeastTwoEntities, checked after the commit.)
+context model2::Link post LinkEntitiesCorrespondToLinkComponents:
+    @severity MAJOR
+    @message "{self} references an entity that does not correspond to a Component of its Link"
+    self.OCLisModified
+    implies
+    model::Link.allInstances()
+        .select(l | self ~ l)
+        .forAll(l | self.entities.forAll(e | l.components.exists(c | e ~ c)))
 
 -- Precondition for ProtocolInsertedIntoSystemReaction:
 -- a Protocol must have a non-empty name before it is synced into model2.
@@ -63,8 +109,10 @@ context model::Protocol pre ProtocolHasNameBeforeSync:
     self.name != ""
 
 -- Postcondition for ProtocolInsertedIntoSystemReaction:
--- after the reaction fires, the corresponding CommunicationStandard's name must match the Protocol's.
-context model2::CommunicationStandard post CommunicationStandardNameMatchesProtocolAfterSync:
+-- a CommunicationStandard created by the Reaction carries the name of its Protocol.
+context model2::CommunicationStandard post NewStandardMatchesProtocol:
     @severity MAJOR
-    @message "CommunicationStandard {self.name} must match the name of its corresponding Protocol after sync"
-    model::Protocol.allInstances().select(~).forAll(p | p.name == self.name)
+    @message "CommunicationStandard {self.name} was created without a corresponding Protocol of the same name"
+    self.OCLisNew
+    implies
+    model::Protocol.allInstances().exists(p | self ~ p and self.name == p.name)

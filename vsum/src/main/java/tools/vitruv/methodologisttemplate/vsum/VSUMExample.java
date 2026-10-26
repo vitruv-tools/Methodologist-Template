@@ -9,31 +9,27 @@ import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import tools.vitruv.change.testutils.TestUserInteraction;
-import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 import tools.vitruv.framework.views.CommittableView;
 import tools.vitruv.framework.views.View;
 import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
-import tools.vitruv.framework.vsum.VirtualModelBuilder;
-import tools.vitruv.methodologisttemplate.consistency.registry.ConstraintEvaluationCoordinator;
+import tools.vitruv.methodologisttemplate.consistency.registry.ContractLog;
 import tools.vitruv.methodologisttemplate.consistency.registry.HookedModel2Model2ChangePropagationSpecification;
 import tools.vitruv.methodologisttemplate.consistency.registry.ProjectReactionConstraints;
-import tools.vitruv.methodologisttemplate.consistency.registry.ReactionConstraintCheckingListener;
-import tools.vitruv.methodologisttemplate.consistency.registry.VitruvOCLGatewayImpl;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 
 /**
  * This class provides an example how to define and use a VSUM.
  *
- * <p>It also demonstrates the Reaction-Constraint Registry's automatic hook (see the {@code
- * consistency} module's {@code registry} package): {@link #createDefaultVirtualModel} wires up
- * {@link HookedModel2Model2ChangePropagationSpecification} and {@link
- * ReactionConstraintCheckingListener#failFast} -- the exact same mechanism {@code VSUMExampleTest}
- * uses. Any {@code commitChanges()} below that violates a constraint registered for the Reaction it
- * triggers throws {@link
+ * <p>It also demonstrates the Reaction contracts (see the {@code consistency} module's {@code
+ * registry} package): {@link #createDefaultVirtualModel} builds a {@link ContractGuardedVsum} with
+ * {@link HookedModel2Model2ChangePropagationSpecification} -- the exact same mechanism {@code
+ * VSUMExampleTest} uses. Every Reaction execution below is checked against its pre- and
+ * postconditions, and every commit against all invariants. A violation is rejected (this example
+ * has no user to ask), the commit is rolled back, and {@link
  * tools.vitruv.methodologisttemplate.consistency.registry.ConstraintViolationsDetectedException}
- * straight out of {@code main()}.
+ * is thrown straight out of {@code main()}.
  */
 public class VSUMExample {
 
@@ -102,14 +98,15 @@ public class VSUMExample {
     // than tools.vitruv.change.correspondence.CorrespondencePackage (same simple name).
     tools.vitruv.dsls.reactions.runtime.correspondence.CorrespondencePackage.eINSTANCE.eClass();
 
-    VirtualModel vsum = createDefaultVirtualModel();
+    ContractGuardedVsum vsum = createDefaultVirtualModel();
 
-    CommittableView view = getDefaultView(vsum).withChangeDerivingTrait();
+    CommittableView view = getDefaultView(vsum.vsum()).withChangeDerivingTrait();
     modifyView(
+        vsum,
         view,
         (CommittableView v) -> {
-          // SystemInsertedAsRootReaction fires here, but has no constraints registered in
-          // ProjectReactionConstraints, so the automatic hook has nothing to check yet.
+          // SystemInsertedAsRootReaction fires here, but has no contract registered in
+          // ProjectReactionConstraints, so there is nothing to check for it.
           // registerRoot (rather than getRootObjects().add()) is required here because this
           // System is a brand-new root: Vitruvius needs an explicit URI to know which resource
           // to persist it into.
@@ -118,26 +115,25 @@ public class VSUMExample {
               URI.createFileURI(STORAGE_FOLDER.resolve("example.model").toString()));
         });
     java.lang.System.out.println(
-        "System added. SystemInsertedAsRootReaction fired; nothing was registered to check for"
-            + " it.");
+        "System added. SystemInsertedAsRootReaction fired; it has no contract to check.");
 
     addComponent(vsum);
   }
 
   /**
    * Triggers {@code ComponentInsertedIntoSystemReaction}, which -- unlike {@code
-   * SystemInsertedAsRootReaction} above -- does have constraints registered in {@code
-   * ProjectReactionConstraints}, so the automatic hook actually evaluates something here.
+   * SystemInsertedAsRootReaction} above -- does have a contract registered in {@code
+   * ProjectReactionConstraints}, so its execution is actually checked here.
    *
-   * <p>Reaching the {@code println} below at all already proves every one of those constraints
-   * held: if any had been violated, {@code failFast} would have thrown {@code
-   * ConstraintViolationsDetectedException} out of {@code commitChanges()} a few lines above, and we
-   * would never get here. Rather than leave that as an inference from the absence of an exception,
-   * this explicitly lists which {@link
-   * tools.vitruv.methodologisttemplate.consistency.registry.ConstraintRef}s were registered for the
-   * Reaction that just fired -- i.e. exactly what got checked and passed.
+   * <p>Reaching the {@code println} below at all already proves the contract and every invariant
+   * held: otherwise the commit would have been rolled back and {@code
+   * ConstraintViolationsDetectedException} thrown a few lines above. Rather than leave that as an
+   * inference from the absence of an exception, this explicitly lists which {@link
+   * tools.vitruv.methodologisttemplate.consistency.registry.ConstraintRef}s form the contract of the
+   * Reaction that just ran -- i.e. exactly what got checked and passed.
    */
-  private static void addComponent(VirtualModel vsum) {
+  private static void addComponent(ContractGuardedVsum guarded) {
+    VirtualModel vsum = guarded.vsum();
     var selector = vsum.createSelector(ViewTypeFactory.createIdentityMappingViewType("default"));
     selector.getSelectableElements().stream()
         .filter(System.class::isInstance)
@@ -146,43 +142,28 @@ public class VSUMExample {
     var component = ModelFactory.eINSTANCE.createComponent();
     component.setName("exampleComponent");
     view.getRootObjects(System.class).iterator().next().getComponents().add(component);
-    view.commitChanges();
+    modifyView(guarded, view, v -> {});
 
     var checkedConstraints =
         ProjectReactionConstraints.buildRegistry()
             .getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
     java.lang.System.out.println(
-        "Component added. ComponentInsertedIntoSystemReaction fired and was automatically checked "
-            + "against "
+        "Component added. ComponentInsertedIntoSystemReaction ran and was checked against its "
+            + "contract of "
             + checkedConstraints.size()
-            + " constraint(s) -- all satisfied (true):");
+            + " pre-/postcondition(s) -- all satisfied, and all invariants hold:");
     checkedConstraints.forEach(ref -> java.lang.System.out.println("  [OK] " + ref));
   }
 
-  private static VirtualModel createDefaultVirtualModel() throws IOException {
-    var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
-
-    VirtualModel vsum =
-        new VirtualModelBuilder()
-            .withStorageFolder(STORAGE_FOLDER)
-            .withUserInteractorForResultProvider(
-                new TestUserInteraction.ResultProvider(new TestUserInteraction()))
-            .withChangePropagationSpecifications(hookedSpecification)
-            .buildAndInitialize();
-
-    // Register the VSUM with VitruviusOCL so that evaluateConstraints() can access it.
-    // This only needs to be done once per VSUM instance.
-    VitruvOCL.registerVSUM(vsum);
-
-    var registry = ProjectReactionConstraints.buildRegistry();
-    var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
-    var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
-    hookedSpecification.getPreconditionGuard().bind(coordinator);
-    vsum.addChangePropagationListener(
-        ReactionConstraintCheckingListener.failFast(
-            hookedSpecification.getCollector(), coordinator));
-
-    return vsum;
+  private static ContractGuardedVsum createDefaultVirtualModel() throws IOException {
+    // Without a user to ask, a violated contract or invariant is rejected and rolled back.
+    return ContractGuardedVsum.build(
+        STORAGE_FOLDER,
+        new TestUserInteraction.ResultProvider(new TestUserInteraction()),
+        inconsistencies -> false,
+        new ContractLog(),
+        CONSTRAINT_FILE,
+        PREPOST_CONSTRAINT_FILE);
   }
 
   private static View getDefaultView(VirtualModel vsum) {
@@ -192,8 +173,13 @@ public class VSUMExample {
   }
 
   private static void modifyView(
-      CommittableView view, Consumer<CommittableView> modificationFunction) {
+      ContractGuardedVsum vsum,
+      CommittableView view,
+      Consumer<CommittableView> modificationFunction) {
     modificationFunction.accept(view);
-    view.commitChanges();
+    var outcome = vsum.commit(view);
+    if (!outcome.applied()) {
+      throw outcome.rejection();
+    }
   }
 }

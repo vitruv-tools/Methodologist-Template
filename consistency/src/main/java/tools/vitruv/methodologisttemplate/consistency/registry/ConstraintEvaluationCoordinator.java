@@ -1,108 +1,109 @@
 package tools.vitruv.methodologisttemplate.consistency.registry;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.eclipse.emf.ecore.EObject;
 import tools.vitruv.change.atomic.EChange;
 import tools.vitruv.dsls.reactions.runtime.reactions.Reaction;
+import tools.vitruv.methodologisttemplate.consistency.registry.VitruvOCLGateway.DeclaredConstraint;
 
 /**
- * Given the set of Reactions that fired in a transaction, looks up the relevant constraint set
- * via {@link ReactionConstraintRegistry} and filters VitruvOCL's (whole-file) evaluation result
- * down to just those constraints.
+ * Evaluates the contract of a single Reaction execution -- the pre- and postconditions that
+ * {@link ReactionConstraintRegistry} assigns to the Reaction -- and, after a commit, all invariants.
+ *
+ * <p>Only the constraints assigned to the Reaction are evaluated, not every constraint in the
+ * evaluated files. Contracts are evaluated exactly like invariants: {@code self} ranges over all
+ * instances of the context type, and other elements are reached through fully qualified navigation
+ * and the correspondence operator {@code ~}.
  */
 public final class ConstraintEvaluationCoordinator {
 
   private final ReactionConstraintRegistry registry;
   private final VitruvOCLGateway ocl;
+  private Map<ConstraintRef, DeclaredConstraint> declared;
 
   public ConstraintEvaluationCoordinator(ReactionConstraintRegistry registry, VitruvOCLGateway ocl) {
     this.registry = registry;
     this.ocl = ocl;
   }
 
-  /**
-   * Evaluates with no transaction context at all -- {@code pre}/{@code post} constraints among
-   * {@code firedReactions}' registered set are skipped outright (see {@link
-   * VitruvOCLGateway#evaluateAll()}), not genuinely checked. Prefer {@link #evaluateFor(Set,
-   * List)} whenever a real transaction is available.
-   *
-   * @throws UnknownConstraintException if the registry references a {@link ConstraintRef} that
-   *     is not declared in any file {@link #ocl} evaluates -- fails loudly instead of silently
-   *     never checking it, which is what would otherwise happen with e.g. a typo'd constraint
-   *     name in {@code ProjectReactionConstraints.buildRegistry()}.
-   */
-  public List<ViolatedConstraint> evaluateFor(Set<Class<? extends Reaction>> firedReactions) {
-    Set<ConstraintRef> relevant = registry.getConstraintsForAll(firedReactions);
-    if (relevant.isEmpty()) {
-      return List.of();
-    }
-    return filterViolations(relevant, ocl.evaluateAll());
+  /** Whether {@code reaction} has a contract at all, i.e. whether its executions are checked. */
+  public boolean hasContract(Class<? extends Reaction> reaction) {
+    return !registry.getConstraintsFor(reaction).isEmpty();
+  }
+
+  /** Whether {@code reaction} has postconditions, i.e. whether its changes must be recorded. */
+  public boolean hasPostconditions(Class<? extends Reaction> reaction) {
+    return !ofKind(reaction, ConstraintKind.POSTCONDITION).isEmpty();
   }
 
   /**
-   * Evaluates the constraints registered for {@code firedReactions} against a real transaction --
-   * unlike {@link #evaluateFor(Set)}, {@code pre}/{@code post} constraints are genuinely checked,
-   * not skipped. This is what {@link ReactionConstraintCheckingListener} calls after every commit,
-   * passing the transaction it observed via {@code finishedChangePropagation}.
+   * Evaluates the preconditions of {@code reaction} against the current state, right before the
+   * Reaction runs. They are evaluated with an empty transaction ({@code @pre} and the lifecycle
+   * predicates are not allowed in a precondition anyway).
    *
-   * @param transaction the ordered list of atomic changes between pre-state and the current
-   *     post-state, evaluated by {@code @pre}/{@code OCLisNew}/{@code OCLisModified}/{@code
-   *     OCLisDeleted} (may be empty)
-   * @throws UnknownConstraintException see {@link #evaluateFor(Set)}
+   * @throws UnknownConstraintException if the registry references a constraint that no evaluated
+   *     file declares -- fails loudly instead of silently never checking it
    */
-  public List<ViolatedConstraint> evaluateFor(
-      Set<Class<? extends Reaction>> firedReactions, List<EChange<EObject>> transaction) {
-    Set<ConstraintRef> relevant = registry.getConstraintsForAll(firedReactions);
-    if (relevant.isEmpty()) {
-      return List.of();
-    }
-    return filterViolations(relevant, ocl.evaluateAll(transaction));
+  public List<ViolatedConstraint> evaluatePreconditionsFor(Class<? extends Reaction> reaction) {
+    return evaluate(ofKind(reaction, ConstraintKind.PRECONDITION), List.of());
   }
 
   /**
-   * Evaluates only the {@code pre} constraints registered for {@code reactionClass}, against the
-   * model's <em>current</em> state -- called by {@link PreconditionGuard} right before that
-   * Reaction's generated {@code execute} body runs, at which point the current state genuinely
-   * <em>is</em> the pre-state for this Reaction's effect. Passing {@code List.of()} rather than
-   * {@link VitruvOCLGateway#evaluateAll()} matters here: an empty transaction still evaluates
-   * {@code pre}/{@code post} for real (see {@link VitruvOCLGateway#evaluateAll(List)}), whereas no
-   * transaction at all would skip them outright.
+   * Evaluates the postconditions of {@code reaction} right after one of its executions, against
+   * exactly the changes this execution made: {@code @pre} reads the state right before the
+   * Reaction, {@code OCLisNew}/{@code OCLisModified}/{@code OCLisDeleted} refer to what it created,
+   * changed or deleted.
    *
-   * <p>A precondition whose body reads {@code self}'s current attributes directly is evaluated
-   * correctly this way. One that also relies on {@code OCLisNew}/{@code OCLisModified}/{@code
-   * OCLisDeleted} would not be -- those need this round's transaction-so-far reconstructed, which
-   * is not available yet at this point in a single Reaction's execution.
-   *
-   * @throws UnknownConstraintException see {@link #evaluateFor(Set)}
+   * @throws UnknownConstraintException see {@link #evaluatePreconditionsFor(Class)}
    */
-  public List<ViolatedConstraint> evaluatePreconditionsFor(
-      Class<? extends Reaction> reactionClass) {
-    Set<ConstraintRef> relevant = registry.getConstraintsForAll(Set.of(reactionClass));
-    if (relevant.isEmpty()) {
-      return List.of();
-    }
-    return filterViolations(relevant, ocl.evaluateAll(List.of())).stream()
-        .filter(v -> v.kind() == ConstraintKind.PRECONDITION)
-        .collect(Collectors.toList());
+  public List<ViolatedConstraint> evaluatePostconditionsFor(
+      Class<? extends Reaction> reaction, List<EChange<EObject>> reactionChanges) {
+    return evaluate(ofKind(reaction, ConstraintKind.POSTCONDITION), reactionChanges);
   }
 
-  private List<ViolatedConstraint> filterViolations(
-      Set<ConstraintRef> relevant, List<EvaluatedConstraint> all) {
-    Set<ConstraintRef> declared = all.stream().map(EvaluatedConstraint::ref).collect(Collectors.toSet());
-    Set<ConstraintRef> unknown =
-        relevant.stream()
-            .filter(ref -> !declared.contains(ref))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-    if (!unknown.isEmpty()) {
-      throw new UnknownConstraintException(unknown, declared);
-    }
+  /** Evaluates every invariant of the evaluated files, after a commit. */
+  public List<ViolatedConstraint> evaluateInvariants() {
+    return ocl.evaluateInvariants().stream()
+        .filter(c -> !c.satisfied())
+        .map(ConstraintEvaluationCoordinator::toViolation)
+        .toList();
+  }
 
-    return all.stream()
-        .filter(c -> relevant.contains(c.ref()) && !c.satisfied())
-        .map(c -> new ViolatedConstraint(c.contextType(), c.constraintName(), c.kind(), c.message()))
-        .collect(Collectors.toList());
+  private List<DeclaredConstraint> ofKind(Class<? extends Reaction> reaction, ConstraintKind kind) {
+    return registry.getConstraintsFor(reaction).stream()
+        .map(this::declaration)
+        .filter(c -> c.kind() == kind)
+        .toList();
+  }
+
+  private List<ViolatedConstraint> evaluate(
+      List<DeclaredConstraint> constraints, List<EChange<EObject>> transaction) {
+    return constraints.stream()
+        .map(c -> ocl.evaluate(c, transaction))
+        .filter(c -> !c.satisfied())
+        .map(ConstraintEvaluationCoordinator::toViolation)
+        .toList();
+  }
+
+  private static ViolatedConstraint toViolation(EvaluatedConstraint c) {
+    return new ViolatedConstraint(c.contextType(), c.constraintName(), c.kind(), c.message());
+  }
+
+  private synchronized DeclaredConstraint declaration(ConstraintRef ref) {
+    if (declared == null) {
+      Map<ConstraintRef, DeclaredConstraint> byRef = new LinkedHashMap<>();
+      ocl.declarations().forEach(c -> byRef.put(c.ref(), c));
+      Set<ConstraintRef> unknown = new LinkedHashSet<>();
+      registry.allConstraints().stream().filter(r -> !byRef.containsKey(r)).forEach(unknown::add);
+      if (!unknown.isEmpty()) {
+        throw new UnknownConstraintException(unknown, byRef.keySet());
+      }
+      declared = byRef;
+    }
+    return declared.get(ref);
   }
 }

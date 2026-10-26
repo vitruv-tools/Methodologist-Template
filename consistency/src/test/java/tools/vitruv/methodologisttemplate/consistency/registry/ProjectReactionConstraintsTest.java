@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import mir.reactions.model2Model2.ComponentDeletedReaction;
+import mir.reactions.model2Model2.ComponentInsertedIntoLinkReaction;
 import mir.reactions.model2Model2.ComponentInsertedIntoSystemReaction;
 import mir.reactions.model2Model2.ComponentRenamedReaction;
 import mir.reactions.model2Model2.LinkInsertedIntoSystemReaction;
@@ -13,81 +15,65 @@ import org.junit.jupiter.api.Test;
 
 class ProjectReactionConstraintsTest {
 
-  @Test
-  void componentInsertedIntoSystemHasExpectedConstraints() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
-
-    var constraints = registry.getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
-
-    assertTrue(
-        constraints.contains(new ConstraintRef("model::Component", "ComponentHasCorrespondingEntity")));
-    assertTrue(
-        constraints.contains(new ConstraintRef("model::Component", "ComponentHasCorrespondence")));
-    assertTrue(
-        constraints.contains(new ConstraintRef("model::Component", "ComponentNameMatchesEntityName")));
-  }
+  private final ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
 
   @Test
-  void componentInsertedIntoSystemIncludesPrePostExampleConstraints() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
-
+  void componentInsertedIntoSystemHasPreAndPostconditions() {
     var constraints = registry.getConstraintsFor(ComponentInsertedIntoSystemReaction.class);
 
     assertTrue(constraints.contains(new ConstraintRef("model::Component", "ComponentHasNameBeforeSync")));
     assertTrue(
-        constraints.contains(
-            new ConstraintRef("model::Component", "ComponentHasCorrespondingEntityAfterSync")));
+        constraints.contains(new ConstraintRef("model2::Root", "ComponentInsertCreatedExactlyOneEntity")));
+    assertTrue(constraints.contains(new ConstraintRef("model2::Entity", "NewEntityMatchesComponent")));
   }
 
   @Test
-  void componentRenamedIncludesPrePostExampleConstraint() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
-
+  void componentRenamedHasPreAndPostconditions() {
     var constraints = registry.getConstraintsFor(ComponentRenamedReaction.class);
 
+    assertTrue(constraints.contains(new ConstraintRef("model::Component", "ComponentHasNameBeforeSync")));
     assertTrue(
-        constraints.contains(
-            new ConstraintRef("model2::Entity", "EntityNameMatchesComponentAfterRename")));
+        constraints.contains(new ConstraintRef("model2::Entity", "RenamedEntityMatchesComponent")));
   }
 
   @Test
-  void linkInsertedIntoSystemHasExpectedConstraints() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
-
-    var constraints = registry.getConstraintsFor(LinkInsertedIntoSystemReaction.class);
-
-    assertTrue(constraints.contains(new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntities")));
+  void componentDeletedHasAPostcondition() {
+    assertEquals(
+        List.of(new ConstraintRef("model2::Root", "ComponentDeleteRemovedExactlyOneEntity")),
+        registry.getConstraintsFor(ComponentDeletedReaction.class));
   }
 
   @Test
-  void linkInsertedIntoSystemIncludesPrePostExampleConstraints() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
-
-    var constraints = registry.getConstraintsFor(LinkInsertedIntoSystemReaction.class);
-
+  void linkReactionsHaveTheirContracts() {
+    var linkInserted = registry.getConstraintsFor(LinkInsertedIntoSystemReaction.class);
     assertTrue(
-        constraints.contains(new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync")));
-    assertTrue(
-        constraints.contains(new ConstraintRef("model2::Link", "LinkHasAtLeastTwoEntitiesAfterSync")));
+        linkInserted.contains(new ConstraintRef("model::Link", "LinkHasAtLeastOneComponentBeforeSync")));
+    assertTrue(linkInserted.contains(new ConstraintRef("model2::Link", "NewLinkCorrespondsToLink")));
+
+    assertEquals(
+        List.of(new ConstraintRef("model2::Link", "LinkEntitiesCorrespondToLinkComponents")),
+        registry.getConstraintsFor(ComponentInsertedIntoLinkReaction.class));
   }
 
   @Test
-  void protocolInsertedIntoSystemIncludesPrePostExampleConstraints() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
-
+  void protocolInsertedIntoSystemHasPreAndPostconditions() {
     var constraints = registry.getConstraintsFor(ProtocolInsertedIntoSystemReaction.class);
 
     assertTrue(constraints.contains(new ConstraintRef("model::Protocol", "ProtocolHasNameBeforeSync")));
     assertTrue(
         constraints.contains(
-            new ConstraintRef(
-                "model2::CommunicationStandard", "CommunicationStandardNameMatchesProtocolAfterSync")));
+            new ConstraintRef("model2::CommunicationStandard", "NewStandardMatchesProtocol")));
   }
 
   @Test
-  void reactionWithNoMatchingConstraintHasNoRegistrations() {
-    ReactionConstraintRegistry registry = ProjectReactionConstraints.buildRegistry();
+  void invariantsAreNotRegisteredBecauseTheyAreCheckedAfterEveryCommit() {
+    assertTrue(
+        registry.allConstraints().stream()
+            .noneMatch(ref -> ref.constraintName().equals("LinkHasAtLeastTwoEntities")));
+  }
 
+  @Test
+  void reactionWithoutContractHasNoRegistrations() {
     assertEquals(List.of(), registry.getConstraintsFor(SystemInsertedAsRootReaction.class));
   }
 }

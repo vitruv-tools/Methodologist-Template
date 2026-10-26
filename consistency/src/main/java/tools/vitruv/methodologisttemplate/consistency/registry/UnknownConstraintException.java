@@ -8,7 +8,7 @@ import java.util.Set;
  * evaluated {@code .ocl} file(s) -- almost always a typo in the {@code (contextType,
  * constraintName)} pair, or a constraint that was renamed/removed from the {@code .ocl} file
  * without updating the registry. Registering such a Reference would otherwise silently never be
- * checked, since it can never appear in {@link VitruvOCLGateway#evaluateAll()}'s result.
+ * checked.
  */
 public final class UnknownConstraintException extends IllegalStateException {
 

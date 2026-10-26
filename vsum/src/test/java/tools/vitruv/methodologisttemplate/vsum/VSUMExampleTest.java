@@ -13,21 +13,17 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import tools.vitruv.change.propagation.ChangePropagationMode;
 import tools.vitruv.change.testutils.TestUserInteraction;
 import tools.vitruv.dsls.vitruvocl.pipeline.VitruvOCL;
 import tools.vitruv.framework.views.CommittableView;
 import tools.vitruv.framework.views.View;
 import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
-import tools.vitruv.framework.vsum.VirtualModelBuilder;
 import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
-import tools.vitruv.methodologisttemplate.consistency.registry.ConstraintEvaluationCoordinator;
+import tools.vitruv.methodologisttemplate.consistency.registry.ConstraintKind;
 import tools.vitruv.methodologisttemplate.consistency.registry.ConstraintViolationsDetectedException;
+import tools.vitruv.methodologisttemplate.consistency.registry.ContractLog;
 import tools.vitruv.methodologisttemplate.consistency.registry.HookedModel2Model2ChangePropagationSpecification;
-import tools.vitruv.methodologisttemplate.consistency.registry.ProjectReactionConstraints;
-import tools.vitruv.methodologisttemplate.consistency.registry.ReactionConstraintCheckingListener;
-import tools.vitruv.methodologisttemplate.consistency.registry.VitruvOCLGatewayImpl;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
@@ -38,14 +34,14 @@ import tools.vitruv.methodologisttemplate.model.model2.Root;
  * <p>It also demonstrates how to integrate VitruviusOCL for constraint-based consistency checking.
  * Constraints are defined in {@code constraints.ocl} and can be evaluated manually via
  * {@link VitruvOCL#evaluateConstraints(java.nio.file.Path)}. {@link #createDefaultVirtualModel}
- * additionally wires up the Reaction-Constraint Registry's automatic hook (see the {@code
- * consistency} module's {@code registry} package): every VSUM created by every test in this class
- * uses {@link HookedModel2Model2ChangePropagationSpecification} and a {@link
- * ReactionConstraintCheckingListener#failFast}, so any {@code commitChanges()} call below that
- * violates a constraint registered against the Reaction it triggers throws immediately, failing
- * that test with a message naming the violated constraint -- not just the scenarios explicitly
- * about pre/post conditions, but every test in this file, since {@code
- * ProjectReactionConstraints} already covers the Reactions exercised here.
+ * additionally wires up the Reaction contracts (see the {@code consistency} module's {@code
+ * registry} package): every VSUM created by every test in this class is a {@link
+ * ContractGuardedVsum} with {@link HookedModel2Model2ChangePropagationSpecification}. Every Reaction
+ * execution is checked against its pre- and postconditions in {@code prepost-example.ocl}, and
+ * every commit against all invariants in {@code constraints.ocl}. A violation is rejected unless a
+ * test answers otherwise, the commit is rolled back, and {@link #modifyView} throws a {@link
+ * ConstraintViolationsDetectedException} naming the violated constraint -- in every test in this
+ * file, not just the ones explicitly about contracts.
  */
 public class VSUMExampleTest {
 
@@ -59,6 +55,14 @@ public class VSUMExampleTest {
       "../consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/constraints.ocl");
   private static final java.nio.file.Path PREPOST_CONSTRAINT_FILE = java.nio.file.Path.of(
       "../consistency/src/main/constraints/tools/vitruv/methodologisttemplate/consistency/prepost-example.ocl");
+
+  /** Answers the confirmation asked for a violated contract; empty means "unexpected". */
+  private TestUserInteraction interaction;
+
+  /** The VSUM of the current test; after a rollback, {@link ContractGuardedVsum#vsum()} changes. */
+  private ContractGuardedVsum guarded;
+
+  private ContractLog log;
 
   @BeforeAll
   static void setup() {
@@ -260,11 +264,11 @@ public class VSUMExampleTest {
   }
 
   /**
-   * Proves the automatic hook wired into {@link #createDefaultVirtualModel} actually catches a
-   * real violation in this file, not just structurally staying green because nothing here happens
-   * to be broken. Deliberately commits a {@code model::Link} with only one Component, which the
-   * real (evaluated) {@code inv} constraint {@code LinkHasAtLeastTwoEntities} forbids -- unlike
-   * {@link #testLink} above, which correctly adds two.
+   * Proves the invariant check after every commit, wired into {@link #createDefaultVirtualModel},
+   * actually catches a real violation in this file. Deliberately commits a {@code model::Link} with
+   * only one Component, which the invariant {@code LinkHasAtLeastTwoEntities} forbids -- unlike
+   * {@link #testLink} above, which correctly adds two. Every Reaction involved satisfies its own
+   * contract; only the system as a whole is inconsistent, so the commit is rolled back.
    */
   @Test
   void linkWithOnlyOneComponentFailsTheCommit(@TempDir Path tempDir) throws IOException {
@@ -292,33 +296,30 @@ public class VSUMExampleTest {
     Assertions.assertTrue(
         exception.getMessage().contains("LinkHasAtLeastTwoEntities"),
         () -> "Expected the failure message to name the violated constraint. Got: " + exception.getMessage());
+    Assertions.assertEquals(ConstraintKind.INVARIANT, exception.violations().get(0).kind());
+    Assertions.assertTrue(
+        assertView(
+            getDefaultView(guarded.vsum(), List.of(System.class)),
+            (View v) -> v.getRootObjects(System.class).iterator().next().getLinks().isEmpty()),
+        "the commit must have been rolled back");
   }
 
   /**
-   * Proves the precondition guard genuinely prevents {@code ComponentInsertedIntoSystemReaction}
-   * from executing at all, rather than merely detecting the violation after the fact. Committing
-   * a Component with a blank name violates {@code ComponentHasNameBeforeSync} (a {@code pre}
-   * constraint in {@code prepost-example.ocl}) -- if the guard only detected this post-hoc, the
-   * corresponding Entity the Reaction creates would already exist in model2 by the time the
-   * exception is inspected below; asserting it does not proves the Reaction's own {@code execute}
-   * body never ran.
-   *
-   * <p>Unlike a postcondition/invariant violation thrown from {@link
-   * ReactionConstraintCheckingListener#failFast} (a {@code ChangePropagationListener}, whose
-   * exceptions Vitruvius propagates unwrapped), {@link PreconditionGuard} throws from inside
-   * {@code Reaction.execute()} itself -- Vitruvius's {@code ChangePropagator} wraps whatever
-   * propagates out of there in a plain {@link RuntimeException}, so the {@link
-   * ConstraintViolationsDetectedException} arrives as its {@link Throwable#getCause() cause}, not
-   * as the exception thrown directly.
+   * Proves the precondition genuinely prevents {@code ComponentInsertedIntoSystemReaction} from
+   * executing at all, rather than merely detecting the violation after the fact. Committing a
+   * Component with a blank name violates {@code ComponentHasNameBeforeSync} (a {@code pre}
+   * constraint in {@code prepost-example.ocl}); the user rejects it, so the Reaction does not run,
+   * the commit is stopped and rolled back -- no Component in model and no Entity in model2.
    */
   @Test
   void componentWithBlankNameNeverTriggersTheReactionAtAll(@TempDir Path tempDir) throws IOException {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
+    interaction.addNextConfirmationInput(false); // "stop the commit"
 
-    var wrapper =
+    var exception =
         Assertions.assertThrows(
-            RuntimeException.class,
+            ConstraintViolationsDetectedException.class,
             () ->
                 modifyView(
                     getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(),
@@ -328,10 +329,7 @@ public class VSUMExampleTest {
                       v.getRootObjects(System.class).iterator().next().getComponents().add(component);
                     }));
 
-    Assertions.assertTrue(
-        wrapper.getCause() instanceof ConstraintViolationsDetectedException,
-        () -> "Expected a ConstraintViolationsDetectedException cause. Got: " + wrapper);
-    String message = wrapper.getCause().getMessage();
+    String message = exception.getMessage();
     Assertions.assertTrue(
         message.contains("ComponentHasNameBeforeSync") && message.contains("was not executed"),
         () ->
@@ -341,10 +339,44 @@ public class VSUMExampleTest {
 
     Assertions.assertTrue(
         assertView(
-            getDefaultView(vsum, List.of(System.class, Root.class)),
-            (View v) -> v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty()),
-        "ComponentInsertedIntoSystemReaction must never have executed -- no Entity should exist "
-            + "in model2");
+            getDefaultView(guarded.vsum(), List.of(System.class, Root.class)),
+            (View v) ->
+                v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty()
+                    && v.getRootObjects(System.class).iterator().next().getComponents().isEmpty()),
+        "ComponentInsertedIntoSystemReaction must never have executed and the commit must have "
+            + "been rolled back -- no Entity in model2, no Component in model");
+  }
+
+  /**
+   * If the user approves a violated precondition, the Reaction runs and the decision is logged.
+   */
+  @Test
+  void componentWithBlankNameIsPropagatedWhenTheUserApproves(@TempDir Path tempDir)
+      throws IOException {
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    // Setting the blank name also triggers ComponentRenamed, whose contract has the same
+    // precondition, so the user is asked once per Reaction execution.
+    interaction.addNextConfirmationInput(true); // "execute anyway"
+    interaction.addNextConfirmationInput(true);
+
+    modifyView(
+        getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(),
+        (CommittableView v) -> {
+          var component = ModelFactory.eINSTANCE.createComponent();
+          component.setName("");
+          v.getRootObjects(System.class).iterator().next().getComponents().add(component);
+        });
+
+    Assertions.assertEquals(2, log.decisions().size());
+    Assertions.assertTrue(log.decisions().stream().allMatch(d -> d.approved()));
+    Assertions.assertTrue(
+        log.decisions().stream()
+            .allMatch(d -> d.violation().constraintName().equals("ComponentHasNameBeforeSync")));
+    Assertions.assertTrue(
+        assertView(
+            getDefaultView(guarded.vsum(), List.of(Root.class)),
+            (View v) -> v.getRootObjects(Root.class).iterator().next().getEntities().size() == 1));
   }
 
   /**
@@ -411,25 +443,18 @@ public class VSUMExampleTest {
   }
 
   private InternalVirtualModel createDefaultVirtualModel(Path projectPath) throws IOException {
-    var hookedSpecification = new HookedModel2Model2ChangePropagationSpecification();
-    InternalVirtualModel model =
-        new VirtualModelBuilder()
-            .withStorageFolder(projectPath)
-            .withUserInteractorForResultProvider(
-                new TestUserInteraction.ResultProvider(new TestUserInteraction()))
-            .withChangePropagationSpecifications(hookedSpecification)
-            .buildAndInitialize();
-    model.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
-
-    VitruvOCL.registerVSUM(model);
-    var registry = ProjectReactionConstraints.buildRegistry();
-    var gateway = new VitruvOCLGatewayImpl(CONSTRAINT_FILE, PREPOST_CONSTRAINT_FILE);
-    var coordinator = new ConstraintEvaluationCoordinator(registry, gateway);
-    hookedSpecification.getPreconditionGuard().bind(coordinator);
-    model.addChangePropagationListener(
-        ReactionConstraintCheckingListener.failFast(hookedSpecification.getCollector(), coordinator));
-
-    return model;
+    interaction = new TestUserInteraction();
+    log = new ContractLog();
+    // Without a user to ask, a violated invariant after a commit is rejected and rolled back.
+    guarded =
+        ContractGuardedVsum.build(
+            projectPath,
+            new TestUserInteraction.ResultProvider(interaction),
+            inconsistencies -> false,
+            log,
+            CONSTRAINT_FILE,
+            PREPOST_CONSTRAINT_FILE);
+    return guarded.vsum();
   }
 
   // See https://github.com/vitruv-tools/Vitruv/issues/717 for more information
@@ -446,7 +471,10 @@ public class VSUMExampleTest {
   // readable
   private void modifyView(CommittableView view, Consumer<CommittableView> modificationFunction) {
     modificationFunction.accept(view);
-    view.commitChanges();
+    var outcome = guarded.commit(view);
+    if (!outcome.applied()) {
+      throw outcome.rejection();
+    }
   }
 
   private boolean assertView(View view, Function<View, Boolean> viewAssertionFunction) {

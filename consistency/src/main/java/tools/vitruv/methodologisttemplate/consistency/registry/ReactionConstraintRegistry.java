@@ -11,8 +11,9 @@ import tools.vitruv.dsls.reactions.runtime.reactions.Reaction;
 
 /**
  * Associates a Reaction (identified by its generated class — not a String name, so a rename
- * fails the build instead of silently orphaning a registry entry) with the set of OCL#
- * pre-/postcondition constraints that must hold after it executes.
+ * fails the build instead of silently orphaning a registry entry) with its contract: the OCL#
+ * preconditions checked right before and the postconditions checked right after each of its
+ * executions (see {@link HookedReaction}).
  *
  * <p>Instance-based (not static) so tests can create isolated registries; production code is
  * expected to build one instance at startup and populate it via {@link #register}, mirroring
@@ -31,6 +32,13 @@ public final class ReactionConstraintRegistry {
 
   public List<ConstraintRef> getConstraintsFor(Class<? extends Reaction> reactionClass) {
     return List.copyOf(reactionToConstraints.getOrDefault(reactionClass, List.of()));
+  }
+
+  /** Every constraint referenced by any Reaction. */
+  public Set<ConstraintRef> allConstraints() {
+    var result = new LinkedHashSet<ConstraintRef>();
+    reactionToConstraints.values().forEach(result::addAll);
+    return result;
   }
 
   public Set<ConstraintRef> getConstraintsForAll(
