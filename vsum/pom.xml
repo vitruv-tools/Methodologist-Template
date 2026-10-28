@@ -14,7 +14,7 @@
     <artifactId>tools.vitruv.methodologisttemplate.vsum</artifactId>
 
     <name>Vsum</name>
-    <description />
+    <description/>
 
     <dependencies>
         <!-- project dependencies -->
@@ -26,6 +26,11 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>tools.vitruv.methodologisttemplate.consistency</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -54,10 +59,16 @@
         <dependency>
             <groupId>tools.vitruv</groupId>
             <artifactId>tools.vitruv.framework.views</artifactId>
+            <version>${vitruv.version}</version>
         </dependency>
         <dependency>
             <groupId>tools.vitruv</groupId>
             <artifactId>tools.vitruv.framework.vsum</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>tools.vitruv.compmodelcons</groupId>
+            <artifactId>tools.vitruv.compmodelcons.views</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
         </dependency>
 
         <!-- external dependencies -->

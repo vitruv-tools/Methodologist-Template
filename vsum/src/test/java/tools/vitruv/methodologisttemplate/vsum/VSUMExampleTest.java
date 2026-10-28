@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
+import neojoin.viewtypes.example.ExampleViewType;
+import neojoin.viewtypes.example2.Thing;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
@@ -26,6 +28,7 @@ import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
+import tools.vitruv.methodologisttemplate.viewtype.Example2ViewTypeWithInversion;
 
 /**
  * This class provides an example how to define and use a VSUM.
@@ -96,18 +99,18 @@ public class VSUMExampleTest {
               // Note: to make the test result easier to understand, these different effects
               // should be tested one by one
               return v.getRootObjects(System.class)
-                  .iterator()
-                  .next()
-                  .getComponents()
-                  .get(0)
-                  .getName()
-                  .equals(
-                      v.getRootObjects(Root.class)
-                          .iterator()
-                          .next()
-                          .getEntities()
-                          .get(0)
-                          .getName());
+                         .iterator()
+                         .next()
+                         .getComponents()
+                         .get(0)
+                         .getName()
+                         .equals(
+                             v.getRootObjects(Root.class)
+                                 .iterator()
+                                 .next()
+                                 .getEntities()
+                                 .get(0)
+                                 .getName());
             }));
   }
 
@@ -133,18 +136,18 @@ public class VSUMExampleTest {
               // assert that the router has been added and that the corresponding entity has
               // been created
               return v.getRootObjects(System.class)
-                  .iterator()
-                  .next()
-                  .getComponents()
-                  .get(0)
-                  .getName()
-                  .equals(
-                      v.getRootObjects(Root.class)
-                          .iterator()
-                          .next()
-                          .getEntities()
-                          .get(0)
-                          .getName());
+                         .iterator()
+                         .next()
+                         .getComponents()
+                         .get(0)
+                         .getName()
+                         .equals(
+                             v.getRootObjects(Root.class)
+                                 .iterator()
+                                 .next()
+                                 .getEntities()
+                                 .get(0)
+                                 .getName());
             }));
   }
 
@@ -167,19 +170,19 @@ public class VSUMExampleTest {
               // assert that the renaming worked on the component as well as the corresponding
               // entity
               return v.getRootObjects(System.class)
-                      .iterator()
-                      .next()
-                      .getComponents()
-                      .get(0)
-                      .getName()
-                      .equals(newName)
-                  && v.getRootObjects(Root.class)
-                      .iterator()
-                      .next()
-                      .getEntities()
-                      .get(0)
-                      .getName()
-                      .equals(newName);
+                         .iterator()
+                         .next()
+                         .getComponents()
+                         .get(0)
+                         .getName()
+                         .equals(newName)
+                         && v.getRootObjects(Root.class)
+                                .iterator()
+                                .next()
+                                .getEntities()
+                                .get(0)
+                                .getName()
+                                .equals(newName);
             }));
   }
 
@@ -200,7 +203,7 @@ public class VSUMExampleTest {
               // assert that the deletion of the component worked and that the corresponding
               // entity also got deleted
               return v.getRootObjects(System.class).iterator().next().getComponents().isEmpty()
-                  && v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty();
+                         && v.getRootObjects(Root.class).iterator().next().getEntities().isEmpty();
             }));
   }
 
@@ -239,9 +242,9 @@ public class VSUMExampleTest {
             (View v) -> {
               var root = v.getRootObjects(Root.class).iterator().next();
               return root.getLinks().size() == 1
-                  && root.getLinks().get(0).getEntities().size() == 2
-                  && root.getLinks().get(0).getEntities().stream()
-                      .allMatch(c -> c.getName().startsWith("component"));
+                         && root.getLinks().get(0).getEntities().size() == 2
+                         && root.getLinks().get(0).getEntities().stream()
+                                .allMatch(c -> c.getName().startsWith("component"));
             }));
   }
 
@@ -268,11 +271,34 @@ public class VSUMExampleTest {
           var problems = new java.util.ArrayList<>(result.getViolatedConstraints());
           problems.addAll(result.getFailedConstraints());
           return "Expected all OCL constraints to be satisfied after component insertion ("
-              + result.getSummary()
-              + "):\n"
-              + problems.stream().map(Object::toString).collect(java.util.stream.Collectors.joining("\n"))
-              + "\n";
+                     + result.getSummary()
+                     + "):\n"
+                     + problems.stream().map(Object::toString).collect(java.util.stream.Collectors.joining("\n"))
+                     + "\n";
         });
+  }
+
+  @Test
+  void example2ViewIsBidirectional(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+
+    modifyView(
+        getExample2View(vsum).withChangeDerivingTrait(),
+        (CommittableView v) -> {
+          var root = v.getRootObjects(neojoin.viewtypes.example2.Root.class).iterator().next();
+          var thing = root.getAllThings().stream().filter(t -> t.getName().endsWith("Suffix")).findFirst().orElseThrow();
+          thing.setName("newNameSuffix");
+        });
+
+    Assertions.assertTrue(
+        assertView(
+            getDefaultView(vsum, List.of(System.class)),
+            (View v) -> {
+              var component = v.getRootObjects(System.class).iterator().next().getComponents().getFirst();
+              return component.getName().equals("newName");
+            }));
   }
 
   private void addSystem(VirtualModel vsum, Path projectPath) {
@@ -315,6 +341,8 @@ public class VSUMExampleTest {
             .withUserInteractorForResultProvider(
                 new TestUserInteraction.ResultProvider(new TestUserInteraction()))
             .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+            .withViewType(ExampleViewType::new)
+            .withViewType(Example2ViewTypeWithInversion::new)
             .buildAndInitialize();
     model.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
     return model;
@@ -327,6 +355,18 @@ public class VSUMExampleTest {
     selector.getSelectableElements().stream()
         .filter(element -> rootTypes.stream().anyMatch(it -> it.isInstance(element)))
         .forEach(it -> selector.setSelected(it, true));
+    return selector.createView();
+  }
+
+  private static View getExampleView(VirtualModel vsum) {
+    var viewtype = vsum.getViewTypes().stream().filter(vt -> vt.getName().equals(ExampleViewType.NAME)).findFirst().orElseThrow();
+    var selector = vsum.createSelector(viewtype);
+    return selector.createView();
+  }
+
+  private static View getExample2View(VirtualModel vsum) {
+    var viewtype = vsum.getViewTypes().stream().filter(vt -> vt.getName().equals(Example2ViewTypeWithInversion.NAME)).findFirst().orElseThrow();
+    var selector = vsum.createSelector(viewtype);
     return selector.createView();
   }
 

@@ -1,0 +1,21 @@
+module tools.vitruv.methodologisttemplate.viewtype
+
+import tools.vitruv.compmodelcons.generator.AggregateEcoreGenerator
+import org.eclipse.emf.mwe.utils.StandaloneSetup
+
+var workspaceRoot = ".."
+
+Workflow {
+
+    bean = StandaloneSetup {
+        scanClassPath = true
+        platformUri = workspaceRoot
+    }
+
+    component = AggregateEcoreGenerator {
+        genModels = "platform:/resource/tools.vitruv.methodologisttemplate.viewtype/target/generated-sources/neojoin/ecore"
+        srcPath = "platform:/resource/tools.vitruv.methodologisttemplate.viewtype/target/generated-sources/ecore"
+        generateCustomClasses = false
+    }
+
+}

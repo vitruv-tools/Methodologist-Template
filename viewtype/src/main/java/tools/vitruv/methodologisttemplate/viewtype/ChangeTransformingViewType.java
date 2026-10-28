@@ -19,7 +19,7 @@ import tools.vitruv.framework.views.impl.IdentityMappingViewType;
 public abstract class ChangeTransformingViewType extends IdentityMappingViewType {
 
   /**
-   * 
+   *
    * @param name the name of the viewtype
    */
   public ChangeTransformingViewType(String name) {
@@ -28,7 +28,7 @@ public abstract class ChangeTransformingViewType extends IdentityMappingViewType
 
   /**
    * Registers the given filter which is applied to changes on this View.
-   * 
+   *
    * @param filter the filter to register to this {@link ChangeTransformingView}
    * @return whether the register operation was successful.
    */
@@ -37,7 +37,7 @@ public abstract class ChangeTransformingViewType extends IdentityMappingViewType
   /**
    * Unregisters the given filter which will no longer be applied to changes on
    * the view.
-   * 
+   *
    * @param filter the filter to unregister from this
    *               {@link ChangeTransformingView}
    * @return whether the unregister operation was successful.
@@ -47,7 +47,7 @@ public abstract class ChangeTransformingViewType extends IdentityMappingViewType
   /**
    * Builds and returns a new {@link ChangeTransformingView} without any filters
    * added. The created View is a {@link ChangeDerivingView}.
-   * 
+   *
    * @return a new instance of a {@link ChangeTransformingView}
    */
   public static ChangeTransformingViewType create(String name) {
