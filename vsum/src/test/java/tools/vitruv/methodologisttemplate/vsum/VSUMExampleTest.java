@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
+import neojoin.viewtypes.example.ExampleViewType;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
@@ -26,6 +27,7 @@ import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
+import tools.vitruv.methodologisttemplate.viewtype.Example2ViewTypeWithInversion;
 
 /**
  * This class provides an example how to define and use a VSUM.
@@ -275,6 +277,66 @@ public class VSUMExampleTest {
         });
   }
 
+  /**
+   * The view type generated from {@code example.nj} shows each Component as a Thing. Its inversion
+   * is generated, because the query only projects the attribute {@code name}.
+   */
+  @Test
+  void generatedViewTypeShowsAndUpdatesComponents(@TempDir Path tempDir) throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+
+    var view = getViewOfType(vsum, ExampleViewType.NAME);
+    var root = view.getRootObjects(neojoin.viewtypes.example.Root.class).iterator().next();
+    Assertions.assertEquals(
+        List.of("specialname"),
+        root.getThings().stream().map(neojoin.viewtypes.example.Thing::getName).toList());
+
+    modifyView(
+        getViewOfType(vsum, ExampleViewType.NAME).withChangeDerivingTrait(),
+        (CommittableView v) -> {
+          var thing =
+              v.getRootObjects(neojoin.viewtypes.example.Root.class).iterator().next()
+                  .getThings().getFirst();
+          thing.setName("newName");
+        });
+
+    Assertions.assertEquals(
+        "newName",
+        getDefaultView(vsum, List.of(System.class))
+            .getRootObjects(System.class).iterator().next().getComponents().getFirst().getName());
+  }
+
+  /**
+   * The query in {@code example2.nj} calculates the name of a Thing. NeoJoin cannot invert Xbase
+   * expressions, so {@link Example2ViewTypeWithInversion} provides the inversion by hand.
+   */
+  @Test
+  void generatedViewTypeWithHandWrittenInversionUpdatesComponents(@TempDir Path tempDir)
+      throws IOException {
+    InternalVirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+
+    modifyView(
+        getViewOfType(vsum, Example2ViewTypeWithInversion.NAME).withChangeDerivingTrait(),
+        (CommittableView v) -> {
+          var root = v.getRootObjects(neojoin.viewtypes.example2.Root.class).iterator().next();
+          var thing =
+              root.getThings().stream()
+                  .filter(t -> t.getName().endsWith("Suffix"))
+                  .findFirst()
+                  .orElseThrow();
+          thing.setName("newNameSuffix");
+        });
+
+    Assertions.assertEquals(
+        "newName",
+        getDefaultView(vsum, List.of(System.class))
+            .getRootObjects(System.class).iterator().next().getComponents().getFirst().getName());
+  }
+
   private void addSystem(VirtualModel vsum, Path projectPath) {
     CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait();
     modifyView(
@@ -315,6 +377,9 @@ public class VSUMExampleTest {
             .withUserInteractorForResultProvider(
                 new TestUserInteraction.ResultProvider(new TestUserInteraction()))
             .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+            // view types generated from the NeoJoin queries in the viewtype module
+            .withViewType(ExampleViewType::new)
+            .withViewType(Example2ViewTypeWithInversion::new)
             .buildAndInitialize();
     model.setChangePropagationMode(ChangePropagationMode.TRANSITIVE_CYCLIC);
     return model;
@@ -328,6 +393,15 @@ public class VSUMExampleTest {
         .filter(element -> rootTypes.stream().anyMatch(it -> it.isInstance(element)))
         .forEach(it -> selector.setSelected(it, true));
     return selector.createView();
+  }
+
+  private View getViewOfType(VirtualModel vsum, String viewTypeName) {
+    var viewType =
+        vsum.getViewTypes().stream()
+            .filter(vt -> vt.getName().equals(viewTypeName))
+            .findFirst()
+            .orElseThrow();
+    return vsum.createSelector(viewType).createView();
   }
 
   // These functions are only for convience, as they make the code a bit better

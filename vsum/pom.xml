@@ -28,6 +28,11 @@
             <artifactId>tools.vitruv.methodologisttemplate.consistency</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>tools.vitruv.methodologisttemplate.viewtype</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- VitruviusOCL: cross-model constraint language and evaluator.
              The version is intentionally hardcoded here and not managed via a shared property,

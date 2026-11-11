@@ -30,10 +30,25 @@
 
   <properties>
     <vitruv.version>4.0.1</vitruv.version>
+    <!-- NeoJoin for Vitruvius (generates view types from NeoJoin queries). There is no release yet:
+         this is the snapshot from the Maven Central snapshot repository (declared by the parent POM). -->
+    <neojoin-vitruv.version>0.1.0-SNAPSHOT</neojoin-vitruv.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
+      <!-- NeoJoin dependencies -->
+      <dependency>
+        <groupId>tools.vitruv</groupId>
+        <artifactId>tools.vitruv.neojoin.vitruv.views</artifactId>
+        <version>${neojoin-vitruv.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>tools.vitruv</groupId>
+        <artifactId>tools.vitruv.neojoin.vitruv.change</artifactId>
+        <version>${neojoin-vitruv.version}</version>
+      </dependency>
+
       <!-- Vitruvius dependencies -->
       <dependency>
         <groupId>tools.vitruv</groupId>
