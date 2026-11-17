@@ -23,6 +23,7 @@ import tools.vitruv.framework.views.ViewTypeFactory;
 import tools.vitruv.framework.vsum.VirtualModel;
 import tools.vitruv.framework.vsum.VirtualModelBuilder;
 import tools.vitruv.framework.vsum.internal.InternalVirtualModel;
+import tools.vitruv.methodologisttemplate.model.Author;
 import tools.vitruv.methodologisttemplate.model.model.ModelFactory;
 import tools.vitruv.methodologisttemplate.model.model.System;
 import tools.vitruv.methodologisttemplate.model.model2.Root;
@@ -154,12 +155,13 @@ public class VSUMExampleTest {
     VirtualModel vsum = createDefaultVirtualModel(tempDir);
     addSystem(vsum, tempDir);
     addComponent(vsum);
-    modifyView(
-        getDefaultView(vsum, List.of(System.class)).withChangeDerivingTrait(),
-        (CommittableView v) -> {
-          // change the name of the component
-          v.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
-        });
+    // A ChangeRecordingView records setName() as a ReplaceSingleValuedEAttribute, so that the
+    // ComponentRenamed reaction fires. A ChangeDerivingView (state diff) may derive DELETE+CREATE
+    // for a rename when EMFCompare cannot match the old and new name, bypassing the reaction.
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeRecordingTrait();
+    view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
+    view.setAnnotation(Author.class, new Author("methodologist"));
+    view.commitChanges();
     Assertions.assertTrue(
         assertView(
             getDefaultView(vsum, List.of(System.class, Root.class)),
@@ -180,6 +182,32 @@ public class VSUMExampleTest {
                       .get(0)
                       .getName()
                       .equals(newName);
+            }));
+  }
+
+  @Test
+  void renameComponentWithoutAuthorDoesNotPropagate(@TempDir Path tempDir) throws IOException {
+    final String originalName = "specialname";
+    final String newName = "unauthorizedName";
+    VirtualModel vsum = createDefaultVirtualModel(tempDir);
+    addSystem(vsum, tempDir);
+    addComponent(vsum);
+    // See renameComponent for why a ChangeRecordingView is used.
+    CommittableView view = getDefaultView(vsum, List.of(System.class)).withChangeRecordingTrait();
+    view.getRootObjects(System.class).iterator().next().getComponents().get(0).setName(newName);
+    // no Author annotation, so the renameEntity routine must not rename the entity
+    view.commitChanges();
+    Assertions.assertTrue(
+        assertView(
+            getDefaultView(vsum, List.of(System.class, Root.class)),
+            (View v) -> {
+              return v.getRootObjects(Root.class)
+                  .iterator()
+                  .next()
+                  .getEntities()
+                  .get(0)
+                  .getName()
+                  .equals(originalName);
             }));
   }
 
