@@ -29,7 +29,7 @@
   </modules>
 
   <properties>
-    <vitruv.version>4.0.1</vitruv.version>
+    <vitruv.version>4.0.2</vitruv.version>
     <!-- NeoJoin for Vitruvius (generates view types from NeoJoin queries). There is no release yet:
          this is the snapshot from the Maven Central snapshot repository (declared by the parent POM). -->
     <neojoin-vitruv.version>0.1.0-SNAPSHOT</neojoin-vitruv.version>
