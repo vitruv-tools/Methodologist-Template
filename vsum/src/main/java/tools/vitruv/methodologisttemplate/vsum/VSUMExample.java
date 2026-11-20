@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import mir.reactions.model2Model2.Model2Model2ChangePropagationSpecification;
+import neojoin.viewtypes.example.ExampleViewType;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
@@ -108,6 +109,8 @@ public class VSUMExample {
         .withUserInteractorForResultProvider(
             new TestUserInteraction.ResultProvider(new TestUserInteraction()))
         .withChangePropagationSpecifications(new Model2Model2ChangePropagationSpecification())
+        // view type generated from example.nj in the viewtype module
+        .withViewType(ExampleViewType::new)
         .buildAndInitialize();
   }
 
