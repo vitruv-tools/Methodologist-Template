@@ -114,6 +114,36 @@ as long as the IDE is actually configured to launch with a JDK 21 runtime.
 
 This folder contains the definition of the view types. These are necessary to create views of the vsum.
 
+### View Types with NeoJoin
+
+Besides hand-written view types, the build generates a view type for each [NeoJoin](https://github.com/vitruv-tools/NeoJoin) query (`.nj` file) in `viewtype/src/main/neojoin`, using [NeoJoin for Vitruvius](https://github.com/vitruv-tools/NeoJoin-for-Vitruvius).
+For example, `example.nj` shows every `Component` of the first model as a `Thing` with a `name`:
+
+```
+export example to "http://vitruv.tools/methodologisttemplate/example"
+
+import "http://vitruv.tools/methodologisttemplate/model"
+
+from Component c
+create Thing {
+    c.name
+}
+```
+
+The generated class `neojoin.viewtypes.example.ExampleViewType` is registered like any other view type with `VirtualModelBuilder.withViewType(ExampleViewType::new)`.
+Changes made in the view are propagated back to the `Component`, because NeoJoin can invert a plain attribute projection.
+
+`example2.nj` calculates the name of the `Thing` with an expression (`c.name + "Suffix"`).
+NeoJoin cannot invert such expressions.
+Extend the generated view type and override the generated `doPut_...` method to provide the inversion, as `Example2ViewTypeWithInversion` does.
+
+Both view types are used in `VSUMExampleTest` (`generatedViewTypeShowsAndUpdatesComponents`, `generatedViewTypeWithHandWrittenInversionUpdatesComponents`).
+The build integration (the `xtext-maven-plugin` with `NeoJoinVitruvBuildSetup` and the MWE2 workflow `viewtype/workflow/generate.mwe2`) is in `viewtype/pom.xml`.
+
+NeoJoin for Vitruvius has no release yet.
+The root `pom.xml` therefore uses the snapshot (`neojoin-vitruv.version`) from the Maven Central snapshot repository, which the parent POM declares.
+Snapshots change without a change in this repository; `--update-snapshots` fetches the latest ones.
+
 ## Vsum
 
 This folder contains the VSUM
